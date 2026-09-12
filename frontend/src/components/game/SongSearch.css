@@ -1,0 +1,49 @@
+.song-search {
+  position: relative;
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  transition:
+    border-color var(--fast) var(--ease),
+    box-shadow var(--fast) var(--ease);
+}
+
+.song-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+/* Shakes on a wrong guess. Brief, since it repeats up to five times a round. */
+.song-search--shake {
+  animation: shake 420ms var(--ease);
+  border-color: var(--danger);
+}
+
+.song-search__icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.song-search__input {
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  background: none;
+  font-size: 15px;
+  outline: none;
+}
+
+.song-search__input::placeholder {
+  color: var(--text-faint);
+}
+
+.song-search__input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

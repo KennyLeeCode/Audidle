@@ -1,0 +1,27 @@
+.difficulty-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.difficulty-tab {
+  padding: 8px 18px;
+  border-color: color-mix(in srgb, var(--tab-accent) 22%, transparent);
+  background: color-mix(in srgb, var(--tab-accent) 7%, var(--surface));
+  color: color-mix(in srgb, var(--tab-accent) 70%, var(--text-muted));
+  font-size: 13px;
+}
+
+.difficulty-tab:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tab-accent) 14%, var(--surface));
+  color: var(--tab-accent);
+}
+
+/* The selected tab uses its own tier colour, not the global accent, so the
+   two always agree even mid transition. */
+.difficulty-tab.pill--active {
+  background: var(--tab-accent);
+  color: #07120a;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tab-accent) 16%, transparent);
+}

@@ -1,0 +1,100 @@
+.play-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: center;
+}
+
+.play-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--accent) 88%, white),
+    var(--accent)
+  );
+  color: #04140a;
+  box-shadow:
+    var(--shadow-lifted),
+    0 0 44px var(--accent-soft);
+  transition:
+    transform var(--fast) var(--ease),
+    box-shadow var(--normal) var(--ease),
+    filter var(--fast) var(--ease);
+}
+
+.play-button:hover:not(:disabled) {
+  transform: scale(1.04);
+  box-shadow:
+    var(--shadow-lifted),
+    0 0 60px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.play-button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.play-button:disabled {
+  filter: grayscale(0.6) brightness(0.6);
+  cursor: not-allowed;
+}
+
+/*
+ * Sweeps once per press, over exactly the clip duration. At the 0.01s stage
+ * this is effectively a flash, which is the honest representation of what just
+ * played.
+ */
+.play-button__ring {
+  position: absolute;
+  inset: -8px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play-button--playing .play-button__ring {
+  animation: ring-sweep var(--clip-duration, 0.5s) linear;
+  /* Never shorter than a frame or two, so even 10ms is perceptible. */
+  animation-duration: max(var(--clip-duration, 0.5s), 180ms);
+}
+
+@keyframes ring-sweep {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+.play-row__duration {
+  min-width: 64px;
+  color: var(--accent);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.play-row__unit {
+  margin-left: 2px;
+  font-size: 15px;
+  opacity: 0.7;
+}
+
+@media (max-width: 560px) {
+  .play-button {
+    width: 118px;
+    height: 118px;
+  }
+
+  .play-row__duration {
+    font-size: 20px;
+  }
+}

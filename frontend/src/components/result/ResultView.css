@@ -1,0 +1,211 @@
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  align-items: center;
+  width: min(560px, 100%);
+  animation: fade-up var(--normal) var(--ease);
+}
+
+.result__verdict {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.result--won .result__verdict {
+  color: var(--success);
+}
+
+.result--failed .result__verdict {
+  color: var(--danger);
+}
+
+.result__card {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.result__art {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  width: 132px;
+  height: 132px;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  /* The artwork is the payoff, so it gets its own reveal rather than arriving
+     with the rest of the card. */
+  animation: art-reveal 420ms var(--ease) 80ms backwards;
+}
+
+.result__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.result__art-fallback {
+  color: var(--text-faint);
+  font-size: 44px;
+  font-weight: 700;
+}
+
+@keyframes art-reveal {
+  from {
+    transform: scale(0.88);
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    filter: none;
+  }
+}
+
+.result__meta {
+  min-width: 0;
+}
+
+.result__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.result__artist {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.result__album {
+  margin: 2px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.result__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-3);
+}
+
+.result__tag {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.result__tag--difficulty {
+  border-color: color-mix(in srgb, var(--tag-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--tag-accent) 12%, transparent);
+  color: var(--tag-accent);
+}
+
+.result__link {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.result__link:hover {
+  color: var(--accent);
+}
+
+.result__transport {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+}
+
+.result__play {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #07120a;
+  transition: transform var(--fast) var(--ease);
+}
+
+.result__play svg {
+  width: 20px;
+  height: 20px;
+}
+
+.result__play:active {
+  transform: scale(0.94);
+}
+
+.result__scrubber {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+}
+
+.result__scrubber-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 250ms linear;
+}
+
+.result__time {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result__next {
+  padding: 13px 32px;
+  font-size: 15px;
+}
+
+.result__countdown {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 18%);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .result__card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .result__tags {
+    justify-content: center;
+  }
+}

@@ -1,0 +1,62 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+}
+
+.sidebar__brand {
+  padding: 0 var(--space-2);
+}
+
+.sidebar__logo {
+  color: var(--accent);
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  transition: color var(--normal) var(--ease);
+}
+
+.sidebar__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar__group--utility {
+  margin-top: auto;
+}
+
+.sidebar__difficulty {
+  padding: 12px 20px;
+}
+
+.sidebar__difficulty.pill--active {
+  background: var(--tab-accent);
+  color: #07120a;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tab-accent) 16%, transparent);
+}
+
+/* Stacked layout: the sidebar becomes a horizontal strip of utilities, since
+   difficulty is already reachable from the tabs above the player. */
+@media (max-width: 1080px) {
+  .sidebar {
+    gap: var(--space-3);
+    padding: 0;
+  }
+
+  .sidebar__group[aria-label='Difficulty'] {
+    display: none;
+  }
+
+  .sidebar__group--utility {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 0;
+  }
+
+  .sidebar__group--utility .pill {
+    flex: 1;
+    min-width: 120px;
+  }
+}

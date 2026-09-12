@@ -1,0 +1,62 @@
+.result-flash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  animation: fade-up var(--fast) var(--ease);
+}
+
+.result-flash__mark {
+  display: grid;
+  place-items: center;
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  animation: flash-pop 420ms var(--ease);
+}
+
+.result-flash__mark svg {
+  width: 52px;
+  height: 52px;
+}
+
+.result-flash--won .result-flash__mark {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+  box-shadow: 0 0 48px color-mix(in srgb, var(--success) 26%, transparent);
+}
+
+.result-flash--failed .result-flash__mark {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  box-shadow: 0 0 48px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.result-flash__label {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.result-flash--won .result-flash__label {
+  color: var(--success);
+}
+
+.result-flash--failed .result-flash__label {
+  color: var(--danger);
+}
+
+@keyframes flash-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

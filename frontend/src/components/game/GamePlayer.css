@@ -1,0 +1,45 @@
+.game-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  align-items: center;
+  width: 100%;
+  animation: fade-up var(--normal) var(--ease);
+}
+
+.game-player__controls {
+  display: flex;
+  gap: var(--space-2);
+  width: min(520px, 100%);
+}
+
+.game-player__skip {
+  flex-shrink: 0;
+  padding: 14px 24px;
+}
+
+.game-player__notice,
+.game-player__error {
+  margin: calc(var(--space-4) * -1) 0 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.game-player__notice {
+  color: var(--text-faint);
+}
+
+.game-player__error {
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .game-player__controls {
+    flex-direction: column;
+  }
+
+  .game-player__skip {
+    justify-content: center;
+    width: 100%;
+  }
+}

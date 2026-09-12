@@ -32,3 +32,6 @@ backend/app/data/audio/*.wav
 .idea/
 .DS_Store
 Thumbs.db
+
+# Vite build output
+frontend/dist/

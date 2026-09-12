@@ -1,0 +1,251 @@
+/* Reset, layout scaffolding, and the shared primitives. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* -- App shell ------------------------------------------------------------ */
+
+/*
+ * Three columns on desktop, matching the reference: controls on the left, the
+ * game in the middle, settings on the right. The center column is the widest
+ * and both sides are fixed, so the play button stays optically centered.
+ */
+.app {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  gap: var(--space-5);
+  min-height: 100%;
+  padding: var(--space-5);
+  /* A faint accent wash behind the center column, the way the reference has a
+     green glow bleeding out of the play area. */
+  background:
+    radial-gradient(70% 55% at 50% 40%, var(--accent-faint), transparent 70%),
+    var(--bg);
+  transition: background var(--normal) var(--ease);
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* -- Panels and primitives ------------------------------------------------ */
+
+.panel {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.panel__title {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 var(--space-3);
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pill {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+.pill:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.pill:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.pill:disabled {
+  opacity: 0.45;
+}
+
+.pill--active {
+  border-color: transparent;
+  background: var(--accent);
+  color: #061008;
+  box-shadow: var(--glow);
+}
+
+.pill--block {
+  width: 100%;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* -- Shared animations ---------------------------------------------------- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+/* -- Responsive ----------------------------------------------------------- */
+
+/*
+ * Below 1080px the side columns stack under the game rather than squeezing it.
+ * The play button and the guess input stay the focus at every width, which is
+ * the one thing that must not degrade.
+ */
+@media (max-width: 1080px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .app__main {
+    order: -1;
+    min-height: 60vh;
+  }
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding: var(--space-3);
+  }
+}
+
+/* -- App level states ----------------------------------------------------- */
+
+.app__banner {
+  margin: 0;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.app__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  animation: fade-up var(--normal) var(--ease);
+}
+
+.app__error-text {
+  margin: 0;
+  max-width: 380px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}

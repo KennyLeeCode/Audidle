@@ -1,0 +1,48 @@
+.stage-progress {
+  display: flex;
+  gap: 4px;
+  width: min(460px, 100%);
+  transition: opacity var(--normal) var(--ease);
+}
+
+.stage-progress--inactive {
+  opacity: 0.35;
+}
+
+.stage-progress__segment {
+  flex: 1;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--surface-raised);
+  transition:
+    background var(--normal) var(--ease),
+    box-shadow var(--normal) var(--ease);
+}
+
+/* Past stages read as spent, present but not competing for attention. */
+.stage-progress__segment--completed {
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface-raised));
+}
+
+/* The current stage is the only segment that glows. */
+.stage-progress__segment--current {
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-soft);
+  /* Draws the eye the moment a new stage unlocks. */
+  animation: stage-unlock var(--normal) var(--ease);
+}
+
+.stage-progress__segment--locked {
+  background: var(--surface-raised);
+}
+
+@keyframes stage-unlock {
+  from {
+    transform: scaleY(0.4);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}

@@ -1,0 +1,43 @@
+.guess-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(460px, 100%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guess-list__item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+  animation: fade-up var(--fast) var(--ease);
+}
+
+.guess-list__marker {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.guess-list__title {
+  overflow: hidden;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.guess-list__artist {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
