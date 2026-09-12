@@ -1,0 +1,564 @@
+{
+  "songs": [
+    {
+      "track_id": "mock000",
+      "title": "Neon Arcadia",
+      "artist": "Violet Transit",
+      "album": "Chromatic Nights",
+      "release_year": 2019,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": true,
+      "duration_ms": 274238,
+      "stream_estimate": 2095425564,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock000.wav"
+    },
+    {
+      "track_id": "mock001",
+      "title": "Paper Lanterns",
+      "artist": "The Harbour Line",
+      "album": "Slow Tide",
+      "release_year": 2016,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 201750,
+      "stream_estimate": 600986534,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock001.wav"
+    },
+    {
+      "track_id": "mock002",
+      "title": "Gravity Sells",
+      "artist": "Fenwick",
+      "album": "Gravity Sells",
+      "release_year": 2021,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 156328,
+      "stream_estimate": 459467786,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock002.wav"
+    },
+    {
+      "track_id": "mock003",
+      "title": "Midnight Frequency",
+      "artist": "Cassette Ghosts",
+      "album": "Analog Bloom",
+      "release_year": 2014,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 257646,
+      "stream_estimate": 36722233,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock003.wav"
+    },
+    {
+      "track_id": "mock004",
+      "title": "Sunburn Boulevard",
+      "artist": "Marla Quinn",
+      "album": "Golden Hour Rerun",
+      "release_year": 2018,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 162337,
+      "stream_estimate": 18381216,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock004.wav"
+    },
+    {
+      "track_id": "mock005",
+      "title": "Concrete Lullaby",
+      "artist": "Nine Story Fall",
+      "album": "Concrete Lullaby",
+      "release_year": 2012,
+      "genres": [
+        "rock"
+      ],
+      "explicit": false,
+      "duration_ms": 226387,
+      "stream_estimate": 2185310972,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock005.wav"
+    },
+    {
+      "track_id": "mock006",
+      "title": "Static Bloom",
+      "artist": "Orinoko",
+      "album": "Signal Garden",
+      "release_year": 2020,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 269236,
+      "stream_estimate": 551137934,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock006.wav"
+    },
+    {
+      "track_id": "mock007",
+      "title": "Every Other Tuesday",
+      "artist": "Delphine Moss",
+      "album": "Small Rooms",
+      "release_year": 2017,
+      "genres": [
+        "indie"
+      ],
+      "explicit": true,
+      "duration_ms": 178140,
+      "stream_estimate": 382427486,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock007.wav"
+    },
+    {
+      "track_id": "mock008",
+      "title": "Hollow Kingdom",
+      "artist": "Ashgrave",
+      "album": "Hollow Kingdom",
+      "release_year": 2015,
+      "genres": [
+        "metal"
+      ],
+      "explicit": false,
+      "duration_ms": 161265,
+      "stream_estimate": 32032582,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock008.wav"
+    },
+    {
+      "track_id": "mock009",
+      "title": "Riverwide",
+      "artist": "Tom Ashby",
+      "album": "Riverwide",
+      "release_year": 2011,
+      "genres": [
+        "folk"
+      ],
+      "explicit": false,
+      "duration_ms": 204810,
+      "stream_estimate": 14950734,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock009.wav"
+    },
+    {
+      "track_id": "mock010",
+      "title": "Velvet Antenna",
+      "artist": "Kudzu Radio",
+      "album": "Velvet Antenna",
+      "release_year": 2022,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 181544,
+      "stream_estimate": 1550013383,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock010.wav"
+    },
+    {
+      "track_id": "mock011",
+      "title": "Blue Hour Drive",
+      "artist": "Saint Odette",
+      "album": "Night Cartography",
+      "release_year": 2019,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 222226,
+      "stream_estimate": 568701179,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock011.wav"
+    },
+    {
+      "track_id": "mock012",
+      "title": "Ember Season",
+      "artist": "The Longest Winter",
+      "album": "Ember Season",
+      "release_year": 2013,
+      "genres": [
+        "rock"
+      ],
+      "explicit": false,
+      "duration_ms": 157747,
+      "stream_estimate": 337912004,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock012.wav"
+    },
+    {
+      "track_id": "mock013",
+      "title": "Glass Parade",
+      "artist": "Ivo Vance",
+      "album": "Glass Parade",
+      "release_year": 2023,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 274184,
+      "stream_estimate": 43616417,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock013.wav"
+    },
+    {
+      "track_id": "mock014",
+      "title": "Copper Wires",
+      "artist": "Halbrook",
+      "album": "Field Notes",
+      "release_year": 2016,
+      "genres": [
+        "folk"
+      ],
+      "explicit": true,
+      "duration_ms": 232657,
+      "stream_estimate": 7890656,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock014.wav"
+    },
+    {
+      "track_id": "mock015",
+      "title": "Afterimage",
+      "artist": "Sable Youth",
+      "album": "Afterimage",
+      "release_year": 2021,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 225642,
+      "stream_estimate": 1532847736,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock015.wav"
+    },
+    {
+      "track_id": "mock016",
+      "title": "Dial Tone Romance",
+      "artist": "Pocket Universe",
+      "album": "Dial Tone Romance",
+      "release_year": 2018,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 201993,
+      "stream_estimate": 834360158,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock016.wav"
+    },
+    {
+      "track_id": "mock017",
+      "title": "Iron Lung Serenade",
+      "artist": "Ashgrave",
+      "album": "Hollow Kingdom",
+      "release_year": 2015,
+      "genres": [
+        "metal"
+      ],
+      "explicit": false,
+      "duration_ms": 277959,
+      "stream_estimate": 136623059,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock017.wav"
+    },
+    {
+      "track_id": "mock018",
+      "title": "Lantern Fever",
+      "artist": "Marla Quinn",
+      "album": "Golden Hour Rerun",
+      "release_year": 2018,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 156105,
+      "stream_estimate": 56673100,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock018.wav"
+    },
+    {
+      "track_id": "mock019",
+      "title": "Weightless in Ohio",
+      "artist": "Delphine Moss",
+      "album": "Small Rooms",
+      "release_year": 2017,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 262521,
+      "stream_estimate": 19078574,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock019.wav"
+    },
+    {
+      "track_id": "mock020",
+      "title": "Cathedral Static",
+      "artist": "Orinoko",
+      "album": "Signal Garden",
+      "release_year": 2020,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 187959,
+      "stream_estimate": 1685990742,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock020.wav"
+    },
+    {
+      "track_id": "mock021",
+      "title": "Two Minute Warning",
+      "artist": "Fenwick",
+      "album": "Gravity Sells",
+      "release_year": 2021,
+      "genres": [
+        "pop"
+      ],
+      "explicit": true,
+      "duration_ms": 168907,
+      "stream_estimate": 745023560,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock021.wav"
+    },
+    {
+      "track_id": "mock022",
+      "title": "Saltwater Hymn",
+      "artist": "Tom Ashby",
+      "album": "Riverwide",
+      "release_year": 2011,
+      "genres": [
+        "folk"
+      ],
+      "explicit": false,
+      "duration_ms": 165439,
+      "stream_estimate": 400278525,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock022.wav"
+    },
+    {
+      "track_id": "mock023",
+      "title": "Hexagon Sun",
+      "artist": "Violet Transit",
+      "album": "Chromatic Nights",
+      "release_year": 2019,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 223434,
+      "stream_estimate": 68403729,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock023.wav"
+    },
+    {
+      "track_id": "mock024",
+      "title": "Rust Belt Sweetheart",
+      "artist": "Nine Story Fall",
+      "album": "Concrete Lullaby",
+      "release_year": 2012,
+      "genres": [
+        "rock"
+      ],
+      "explicit": false,
+      "duration_ms": 163507,
+      "stream_estimate": 6464171,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock024.wav"
+    },
+    {
+      "track_id": "mock025",
+      "title": "Porchlight",
+      "artist": "The Harbour Line",
+      "album": "Slow Tide",
+      "release_year": 2016,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 198810,
+      "stream_estimate": 1803449954,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock025.wav"
+    },
+    {
+      "track_id": "mock026",
+      "title": "Wolves in the Stairwell",
+      "artist": "The Longest Winter",
+      "album": "Ember Season",
+      "release_year": 2013,
+      "genres": [
+        "rock"
+      ],
+      "explicit": false,
+      "duration_ms": 221793,
+      "stream_estimate": 572307642,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock026.wav"
+    },
+    {
+      "track_id": "mock027",
+      "title": "Paper Crown",
+      "artist": "Saint Odette",
+      "album": "Night Cartography",
+      "release_year": 2019,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 223972,
+      "stream_estimate": 143709574,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock027.wav"
+    },
+    {
+      "track_id": "mock028",
+      "title": "Low Orbit",
+      "artist": "Sable Youth",
+      "album": "Afterimage",
+      "release_year": 2021,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": true,
+      "duration_ms": 231134,
+      "stream_estimate": 34999533,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock028.wav"
+    },
+    {
+      "track_id": "mock029",
+      "title": "Kitchen Floor Philosophy",
+      "artist": "Kudzu Radio",
+      "album": "Velvet Antenna",
+      "release_year": 2022,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 215066,
+      "stream_estimate": 7310827,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock029.wav"
+    },
+    {
+      "track_id": "mock030",
+      "title": "Ferryman's Wage",
+      "artist": "Halbrook",
+      "album": "Field Notes",
+      "release_year": 2016,
+      "genres": [
+        "folk"
+      ],
+      "explicit": false,
+      "duration_ms": 206045,
+      "stream_estimate": 2541860529,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock030.wav"
+    },
+    {
+      "track_id": "mock031",
+      "title": "Signal Fire",
+      "artist": "Ivo Vance",
+      "album": "Glass Parade",
+      "release_year": 2023,
+      "genres": [
+        "pop"
+      ],
+      "explicit": false,
+      "duration_ms": 191175,
+      "stream_estimate": 937271523,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock031.wav"
+    },
+    {
+      "track_id": "mock032",
+      "title": "Threadbare",
+      "artist": "Pocket Universe",
+      "album": "Dial Tone Romance",
+      "release_year": 2018,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 226750,
+      "stream_estimate": 359968098,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock032.wav"
+    },
+    {
+      "track_id": "mock033",
+      "title": "Graveyard Shift Blues",
+      "artist": "Cassette Ghosts",
+      "album": "Analog Bloom",
+      "release_year": 2014,
+      "genres": [
+        "electronic"
+      ],
+      "explicit": false,
+      "duration_ms": 197393,
+      "stream_estimate": 87825377,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock033.wav"
+    },
+    {
+      "track_id": "mock034",
+      "title": "Undertow",
+      "artist": "The Harbour Line",
+      "album": "Slow Tide",
+      "release_year": 2016,
+      "genres": [
+        "indie"
+      ],
+      "explicit": false,
+      "duration_ms": 182561,
+      "stream_estimate": 10458511,
+      "artwork_url": null,
+      "external_url": null,
+      "audio_file": "mock034.wav"
+    }
+  ]
+}
