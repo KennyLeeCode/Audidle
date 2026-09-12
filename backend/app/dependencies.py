@@ -18,11 +18,14 @@ from fastapi import Depends
 from app.config.settings import Settings, get_settings
 from app.core.errors import ProviderConfigurationError
 from app.providers.base import AudioProvider, PopularityProvider, SongCatalogProvider
+from app.providers.caching import CachedSongCatalogProvider
 from app.providers.mock import (
     MockAudioProvider,
     MockPopularityProvider,
     MockSongProvider,
 )
+from app.providers.spotify.spotify_client import SpotifyClient
+from app.providers.spotify.spotify_song_provider import SpotifySongProvider
 from app.repositories.round_repository import InMemoryRoundRepository, RoundRepository
 from app.services.game_service import GameService
 from app.services.recent_songs import RecentSongsTracker
@@ -35,22 +38,49 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 @lru_cache
+def get_spotify_client() -> SpotifyClient:
+    """Build the shared Spotify HTTP client.
+
+    Cached because it holds a connection pool and a cached access token. One
+    instance per process, closed on shutdown by the lifespan handler.
+    """
+    settings = get_settings()
+    return SpotifyClient(
+        client_id=settings.spotify_client_id,
+        client_secret=settings.spotify_client_secret,
+    )
+
+
+@lru_cache
 def get_song_catalog_provider() -> SongCatalogProvider:
-    """Build the active catalog provider."""
+    """Build the active catalog provider, wrapped in caching if enabled."""
     settings = get_settings()
 
     if settings.song_provider == "mock":
-        return MockSongProvider(settings.data_dir / "mock_songs.json")
-
-    if settings.song_provider == "spotify":
-        # Deliberately not implemented yet. Failing loudly at startup is far
-        # better than silently falling back to mock data and letting someone
-        # believe they are looking at real Spotify results.
-        raise ProviderConfigurationError(
-            "SONG_PROVIDER=spotify is not implemented yet, use SONG_PROVIDER=mock"
+        provider: SongCatalogProvider = MockSongProvider(settings.data_dir / "mock_songs.json")
+    elif settings.song_provider == "spotify":
+        if not settings.spotify_configured:
+            # Failing at startup rather than on the first search, so a missing
+            # credential is obvious immediately instead of mid game.
+            raise ProviderConfigurationError(
+                "SONG_PROVIDER=spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET"
+            )
+        provider = SpotifySongProvider(
+            client=get_spotify_client(),
+            market=settings.spotify_market,
         )
+    else:
+        raise ProviderConfigurationError(f"unknown SONG_PROVIDER '{settings.song_provider}'")
 
-    raise ProviderConfigurationError(f"unknown SONG_PROVIDER '{settings.song_provider}'")
+    # Caching is applied as a wrapper rather than built into either provider, so
+    # the policy lives in one place and covers whichever one is active.
+    if settings.catalog_cache_enabled:
+        return CachedSongCatalogProvider(
+            provider,
+            search_ttl_seconds=settings.catalog_search_ttl_seconds,
+            song_ttl_seconds=settings.catalog_song_ttl_seconds,
+        )
+    return provider
 
 
 @lru_cache
@@ -122,3 +152,37 @@ def get_game_service() -> GameService:
 
 GameServiceDep = Annotated[GameService, Depends(get_game_service)]
 SongServiceDep = Annotated[SongService, Depends(get_song_service)]
+
+
+def validate_provider_combination() -> None:
+    """Reject provider combinations that cannot produce a playable round.
+
+    Called at startup, because the failure this catches is confusing at request
+    time. The mock popularity provider draws from mock track ids, so pairing it
+    with the Spotify catalog means selection asks Spotify to resolve ids like
+    "mock012". Spotify returns nothing, and every round fails with a misleading
+    "no eligible song" error rather than naming the real cause.
+
+    The Spotify catalog therefore needs a popularity source built over real
+    Spotify track ids, which is the next piece of work.
+    """
+    settings = get_settings()
+
+    if settings.song_provider == "spotify" and settings.popularity_provider == "mock":
+        raise ProviderConfigurationError(
+            "SONG_PROVIDER=spotify cannot be used with POPULARITY_PROVIDER=mock. The mock "
+            "popularity data indexes mock track ids, which the Spotify catalog cannot "
+            "resolve, so no round could ever be created. Either run both as mock, or "
+            "supply a popularity dataset built over real Spotify track ids."
+        )
+
+
+async def shutdown_providers() -> None:
+    """Release provider resources on application shutdown.
+
+    Only the Spotify client holds anything that needs closing, and only if it
+    was ever constructed. Checking the cache rather than calling the factory
+    avoids building a client purely in order to close it.
+    """
+    if get_spotify_client.cache_info().currsize:
+        await get_spotify_client().aclose()

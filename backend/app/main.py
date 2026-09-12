@@ -6,6 +6,8 @@ no provider construction happen here.
 """
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +19,18 @@ from app.api import health as health_router
 from app.api import search as search_router
 from app.config.settings import get_settings
 from app.core.errors import AudidleError
+from app.dependencies import shutdown_providers, validate_provider_combination
 from app.schemas.game import ErrorResponse
 
 API_PREFIX = "/api"
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Validate configuration at startup, release resources at shutdown."""
+    validate_provider_combination()
+    yield
+    await shutdown_providers()
 
 
 def create_app() -> FastAPI:
@@ -38,6 +49,7 @@ def create_app() -> FastAPI:
             "and win or loss."
         ),
         version="0.1.0",
+        lifespan=lifespan,
     )
 
     app.add_middleware(

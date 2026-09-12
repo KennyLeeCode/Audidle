@@ -28,8 +28,8 @@ the back, with the game rules enforced server side.
 | Backend game engine | Done, 61 tests passing |
 | Mock providers (catalog, popularity, audio) | Done |
 | REST API | Done |
-| React frontend | Not started |
-| Spotify catalog integration | Not started |
+| React frontend | Done |
+| Spotify catalog integration | Done, search and metadata |
 | Curated stream count dataset | Not started |
 
 ## Running the backend
@@ -116,26 +116,56 @@ holds the tier thresholds. Both are served to the client via `/api/config`, so
 retuning the game is a one file backend change with no frontend deploy. Stage
 count is always derived from the list, never hardcoded.
 
-## Notes on Spotify
+## What Spotify actually provides
 
-Three real limitations shaped the design, and none of them are worked around by
-pretending:
+Measured against a real app's credentials rather than assumed. For an app
+created after Spotify's November 2024 restrictions:
 
-**Stream counts are not available.** The Web API exposes `popularity`, a
-relative 0-100 score with an undocumented formula. You cannot derive "1 billion
-streams" from it. Difficulty tiers therefore declare both a stream range and a
-fallback popularity band, and the active `PopularityProvider` reads whichever it
-can honour.
+| Endpoint | Status |
+|---|---|
+| `search` | 200 |
+| `tracks/{id}` | 200 |
+| `artists/{id}` (basic) | 200, but `genres` and `popularity` are null |
+| `audio-features`, `audio-analysis` | 403 |
+| `related-artists`, `artist top-tracks` | 403 |
+| `recommendations` | 404 |
 
-**Preview URLs are unreliable.** Spotify restricted 30 second `preview_url`
-access for newly created apps, and the field is frequently `null`. The game is
-not built on it.
+And on a track object, `preview_url` and `popularity` are not null, **the keys
+are absent from the response entirely**:
 
-**Full track playback needs the Web Playback SDK**, which requires a Premium
-account per player, an OAuth login, and playback inside Spotify's DRM player.
-That player cannot be controlled at 10 millisecond precision, so the 0.01s stage
-is not achievable through it. `supports_precise_clips` exists so the UI can say
-so honestly rather than claiming a timing it is not delivering.
+```
+['album', 'artists', 'disc_number', 'duration_ms', 'explicit', 'external_ids',
+ 'external_urls', 'href', 'id', 'is_local', 'is_playable', 'name',
+ 'track_number', 'type', 'uri']
+```
+
+There is no setting that restores them. The consequences:
+
+**No audio.** Spotify cannot supply playable audio for this game. The only
+supported route is the Web Playback SDK, which requires a Premium account per
+player, an OAuth login, and playback inside a DRM iframe that cannot be
+controlled at 10 millisecond precision. The 0.01s stage is not achievable
+through it. Audio therefore comes from `AudioProvider` and never from Spotify.
+
+**No stream counts and no popularity score.** Difficulty needs its own dataset
+keyed by Spotify track id. `PopularityProvider` is a separate port for exactly
+this reason.
+
+**No genres.** Neither track nor artist genres are available, so the planned
+genre filter cannot be driven by Spotify either.
+
+What Spotify is genuinely excellent at, and what it is used for here: search,
+track identity, titles, artists, albums, cover art, release dates, explicit
+flags, ISRCs, and track links.
+
+### A consequence worth knowing
+
+Real Spotify catalogs contain the same song under many track ids: the album
+cut, the single version, a remaster, a deluxe reissue. Because guesses are
+compared on track id, a player who picks the wrong release of the right song is
+currently marked wrong. Matching on ISRC or on a normalized title and artist
+pair would fix it, and the mock catalog does not exhibit the problem, so this
+is unresolved rather than solved.
 
 ## The 0.01 second stage
 

@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     # Backend only. These must never be exposed through any API response.
     spotify_client_id: str = ""
     spotify_client_secret: str = ""
+    # Restricting search to a market drops tracks unavailable there, which keeps
+    # results consistent with what a player in that market would recognize.
+    spotify_market: str = "US"
+
+    # -- Catalog caching ----------------------------------------------------
+    # On by default. Autocomplete fires a request per keystroke burst, and
+    # Spotify's rate limits are shared across the whole app.
+    catalog_cache_enabled: bool = True
+    catalog_search_ttl_seconds: float = 300.0
+    catalog_song_ttl_seconds: float = 3600.0
 
     # -- HTTP ---------------------------------------------------------------
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
