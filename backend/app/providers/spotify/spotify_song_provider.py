@@ -106,6 +106,7 @@ class SpotifySongProvider(SongCatalogProvider):
                 track_id=item["id"],
                 title=item.get("name") or "Unknown title",
                 artist=self._join_artists(item.get("artists")),
+                isrc=(item.get("external_ids") or {}).get("isrc"),
                 album=album.get("name"),
                 artwork_url=self._pick_artwork(album.get("images")),
                 external_url=(item.get("external_urls") or {}).get("spotify"),

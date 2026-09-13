@@ -36,6 +36,7 @@ from app.models.enums import Difficulty, GameStatus, RoundOutcome, SongStartMode
 from app.models.round import GameRound
 from app.models.song import PlayableSource, Song, SongSelectionCriteria
 from app.repositories.round_repository import RoundRepository
+from app.services.guess_matcher import is_same_song
 from app.services.recent_songs import RecentSongsTracker
 from app.services.song_service import SongService
 
@@ -150,14 +151,16 @@ class GameService:
     async def submit_guess(self, round_id: str, track_id: str) -> GuessResult:
         """Validate a guess against the round's hidden answer.
 
-        Comparison is on track id, never on title text. That is what keeps
-        "Blinding Lights" and "Blinding Lights - Single Version" from being
-        conflated, and it is why the frontend submits a chosen search result
-        rather than a free text string.
+        The guess is always a track id chosen from search results, never free
+        text, which is why the client cannot submit an arbitrary string.
+
+        Matching is delegated to guess_matcher rather than being a bare id
+        comparison, because real catalogs carry one recording under many ids.
+        See that module for why, and for the order the tests are applied in.
         """
         game_round = await self._get_active_round(round_id)
 
-        correct = track_id == game_round.song_track_id
+        correct = await self._is_correct(game_round.song_track_id, track_id)
         game_round.record_guess(track_id, correct)
 
         if correct:
@@ -222,6 +225,31 @@ class GameService:
         return game_round, song, source
 
     # -- Internal -----------------------------------------------------------
+
+    async def _is_correct(self, answer_track_id: str, guess_track_id: str) -> bool:
+        """Compare a guess against the answer.
+
+        The fast path is an id match, which needs no catalog lookups at all and
+        covers the large majority of correct guesses. Only when that fails is it
+        worth resolving both songs to compare ISRCs and titles.
+        """
+        if guess_track_id == answer_track_id:
+            return True
+
+        guess = await self._songs.get_song(guess_track_id)
+        if guess is None:
+            # An id the catalog does not know cannot be the answer. A normal
+            # wrong guess, not an error.
+            return False
+
+        answer = await self._songs.get_song(answer_track_id)
+        if answer is None:
+            # The catalog lost the answer mid round. Falling back to the id
+            # comparison already made above, which was False.
+            logger.warning("could not resolve the answer track %s", answer_track_id)
+            return False
+
+        return is_same_song(guess, answer)
 
     def _with_recent_exclusions(
         self, criteria: SongSelectionCriteria, session_id: str | None

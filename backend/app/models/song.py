@@ -23,6 +23,11 @@ class Song:
     track_id: str
     title: str
     artist: str
+    # International Standard Recording Code. Identifies the *recording* rather
+    # than the release, so the album cut and the single of the same master
+    # share one ISRC where their track ids differ. This is what makes guess
+    # matching work across duplicate catalog entries.
+    isrc: str | None = None
     album: str | None = None
     artwork_url: str | None = None
     external_url: str | None = None

@@ -45,6 +45,7 @@ def _build_entry(raw: dict) -> MockCatalogEntry:
         track_id=raw["track_id"],
         title=raw["title"],
         artist=raw["artist"],
+        isrc=raw.get("isrc"),
         album=raw.get("album"),
         artwork_url=raw.get("artwork_url"),
         external_url=raw.get("external_url"),
