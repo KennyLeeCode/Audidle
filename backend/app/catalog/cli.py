@@ -6,7 +6,9 @@
     py -m app.catalog recompute           recalculate eligibility for every song
     py -m app.catalog enrich-youtube      match songs to videos (expensive, resumable)
     py -m app.catalog refresh-youtube     re-read view counts (cheap)
-    py -m app.catalog popularity-report   compare view counts against difficulty
+    py -m app.catalog enrich-listenbrainz collect listen and unique listener counts
+    py -m app.catalog popularity-report   YouTube views against current difficulty
+    py -m app.catalog signal-report       YouTube and ListenBrainz side by side
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -185,6 +187,33 @@ async def _refresh_youtube(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _enrich_listenbrainz(session, settings, force: bool = False) -> int:
+    from sqlalchemy import func, select
+
+    from app.catalog.listenbrainz_enrich import collect_listenbrainz_signals
+    from app.database.catalog_models import CatalogSong
+    from app.providers.listenbrainz.listenbrainz_provider import ListenBrainzProvider
+
+    total = (await session.execute(select(func.count(CatalogSong.id)))).scalar_one()
+    provider = ListenBrainzProvider()
+    try:
+        report = await collect_listenbrainz_signals(session, provider, total_songs=total)
+    finally:
+        await provider.aclose()
+
+    logger.info("LISTENBRAINZ SIGNALS\n")
+    logger.info(f"  songs in catalog      {total:>6}")
+    logger.info(f"  with a MusicBrainz id {report.songs_with_mbid:>6}")
+    logger.info(f"  without an MBID       {report.missing_mbid:>6}")
+    logger.info(f"  answered with data    {report.answered:>6}")
+    logger.info(f"  unique listener rows  {report.with_listeners:>6}")
+    logger.info(f"  listen count rows     {report.with_listens:>6}")
+    logger.info(f"  no data (not zero)    {report.no_data:>6}")
+    logger.info(f"  failed                {report.failed:>6}")
+    logger.info(f"  requests made         {provider.request_count:>6}")
+    return 0
+
+
 async def _popularity_report(session, settings, force: bool = False) -> int:
     from app.catalog.popularity_report import build_popularity_report, render_report
 
@@ -259,6 +288,16 @@ async def _unresolved(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _signal_report(session, settings, force: bool = False) -> int:
+    from app.catalog.multisignal_report import (
+        build_multisignal_report,
+        render_multisignal_report,
+    )
+
+    logger.info(render_multisignal_report(await build_multisignal_report(session)))
+    return 0
+
+
 COMMANDS = {
     "migrate-curated": _migrate_curated,
     "enrich-musicbrainz": _enrich_musicbrainz,
@@ -266,7 +305,9 @@ COMMANDS = {
     "recompute": _recompute,
     "enrich-youtube": _enrich_youtube,
     "refresh-youtube": _refresh_youtube,
+    "enrich-listenbrainz": _enrich_listenbrainz,
     "popularity-report": _popularity_report,
+    "signal-report": _signal_report,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,

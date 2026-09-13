@@ -33,10 +33,16 @@ SCORE_MAX: Final[float] = 100.0
 VIEW_FLOOR: Final[int] = 10_000
 VIEW_CEILING: Final[int] = 3_000_000_000
 
-# Applied to ListenBrainz counts, which run several orders of magnitude smaller
-# than YouTube views. Unused until the signals are combined.
-LISTEN_FLOOR: Final[int] = 100
-LISTEN_CEILING: Final[int] = 2_000_000
+# ListenBrainz runs several orders of magnitude smaller than YouTube, so it gets
+# its own anchors. Chosen as round numbers bracketing the observed range rather
+# than fitted to it: across the calibration set unique listeners ran from 7 to
+# 269k and listens from 7 to 4.1M. The ceilings sit above both so a future
+# bigger song is ranked rather than clipped.
+LISTENER_FLOOR: Final[int] = 50
+LISTENER_CEILING: Final[int] = 500_000
+
+LISTEN_FLOOR: Final[int] = 500
+LISTEN_CEILING: Final[int] = 10_000_000
 
 
 def log_normalize(value: int, floor: int, ceiling: int) -> float:
@@ -67,13 +73,18 @@ def score_from_youtube_views(views: int) -> float:
     return log_normalize(views, VIEW_FLOOR, VIEW_CEILING)
 
 
-def score_from_listen_count(listens: int) -> float:
-    """A secondary score from ListenBrainz listens.
+def score_from_listener_count(listeners: int) -> float:
+    """The ListenBrainz signal that matters most for Audidle.
 
-    Kept separate and unused in difficulty for now. ListenBrainz's audience
-    skews toward album and indie listening, so its ranking disagrees sharply
-    with mainstream recognizability, which is what the game needs.
+    Distinct people, not plays. The game asks whether someone would recognize a
+    song, and a thousand plays by one devoted fan says much less about that than
+    a thousand different people playing it once.
     """
+    return log_normalize(listeners, LISTENER_FLOOR, LISTENER_CEILING)
+
+
+def score_from_listen_count(listens: int) -> float:
+    """Total ListenBrainz plays. Kept, but weighted below unique listeners."""
     return log_normalize(listens, LISTEN_FLOOR, LISTEN_CEILING)
 
 
