@@ -255,8 +255,16 @@ def test_collaborations_keep_their_join_phrases():
         "id": "x",
         "title": "One Kiss",
         "artist-credit": [
-            {"name": "Calvin Harris", "joinphrase": " & ", "artist": {"id": "a", "name": "Calvin Harris"}},
-            {"name": "Dua Lipa", "joinphrase": "", "artist": {"id": "b", "name": "Dua Lipa"}},
+            {
+                "name": "Calvin Harris",
+                "joinphrase": " & ",
+                "artist": {"id": "a", "name": "Calvin Harris"},
+            },
+            {
+                "name": "Dua Lipa",
+                "joinphrase": "",
+                "artist": {"id": "b", "name": "Dua Lipa"},
+            },
         ],
     }
 
