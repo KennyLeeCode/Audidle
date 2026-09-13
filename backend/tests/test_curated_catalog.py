@@ -121,7 +121,7 @@ async def test_selection_excludes_songs_without_audio(sessions):
     """The rule that keeps unplayable rounds from ever being created."""
     provider = DbPopularityProvider(sessions, require_audio=True)
 
-    eligible = await provider.get_eligible_track_ids(
+    eligible = await provider.get_eligible_song_ids(
         SongSelectionCriteria(difficulty=Difficulty.EASY)
     )
 
@@ -132,7 +132,7 @@ async def test_selection_excludes_songs_without_audio(sessions):
 async def test_the_audio_gate_can_be_turned_off(sessions):
     provider = DbPopularityProvider(sessions, require_audio=False)
 
-    eligible = await provider.get_eligible_track_ids(
+    eligible = await provider.get_eligible_song_ids(
         SongSelectionCriteria(difficulty=Difficulty.EASY)
     )
 
@@ -143,15 +143,15 @@ async def test_the_audio_gate_can_be_turned_off(sessions):
 async def test_selection_respects_difficulty_and_exclusions(sessions):
     provider = DbPopularityProvider(sessions, require_audio=True)
 
-    assert await provider.get_eligible_track_ids(
+    assert await provider.get_eligible_song_ids(
         SongSelectionCriteria(difficulty=Difficulty.HARD)
     ) == ["hard-with-audio"]
 
     assert (
-        await provider.get_eligible_track_ids(
+        await provider.get_eligible_song_ids(
             SongSelectionCriteria(
                 difficulty=Difficulty.HARD,
-                exclude_track_ids=frozenset({"hard-with-audio"}),
+                exclude_song_ids=frozenset({"hard-with-audio"}),
             )
         )
         == []

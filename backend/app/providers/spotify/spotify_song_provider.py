@@ -25,7 +25,14 @@ The consequences, made explicit so nothing downstream assumes otherwise:
 import logging
 from typing import Any
 
-from app.models.song import Song
+from app.models.song import (
+    ID_TYPE_ISRC,
+    ID_TYPE_TRACK,
+    PROVIDER_ISRC,
+    PROVIDER_SPOTIFY,
+    ExternalIdentifier,
+    Song,
+)
 from app.providers.base import SongCatalogProvider
 from app.providers.spotify.spotify_client import SpotifyClient
 
@@ -46,6 +53,10 @@ class SpotifySongProvider(SongCatalogProvider):
         # keeps search results consistent with what a player would recognize.
         self._market = market
 
+    @property
+    def provider_name(self) -> str:
+        return "spotify"
+
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         params: dict[str, Any] = {
             "q": query,
@@ -59,13 +70,13 @@ class SpotifySongProvider(SongCatalogProvider):
         items = payload.get("tracks", {}).get("items", [])
         return [song for song in (self._to_song(item) for item in items) if song]
 
-    async def get_song(self, track_id: str) -> Song | None:
+    async def get_song(self, song_id: str) -> Song | None:
         params = {"market": self._market} if self._market else None
-        payload = await self._client.get(f"tracks/{track_id}", params=params)
+        payload = await self._client.get(f"tracks/{song_id}", params=params)
         # An empty dict is the client's translation of a 404.
         return self._to_song(payload) if payload else None
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
         """Batch lookup, chunked to Spotify's 50 id limit.
 
         Unknown ids come back as nulls in the response and are dropped, matching
@@ -73,8 +84,8 @@ class SpotifySongProvider(SongCatalogProvider):
         """
         songs: list[Song] = []
 
-        for start in range(0, len(track_ids), MAX_BATCH_SIZE):
-            chunk = track_ids[start : start + MAX_BATCH_SIZE]
+        for start in range(0, len(song_ids), MAX_BATCH_SIZE):
+            chunk = song_ids[start : start + MAX_BATCH_SIZE]
             params: dict[str, Any] = {"ids": ",".join(chunk)}
             if self._market:
                 params["market"] = self._market
@@ -100,13 +111,20 @@ class SpotifySongProvider(SongCatalogProvider):
             return None
 
         album = item.get("album") or {}
+        isrc = (item.get("external_ids") or {}).get("isrc")
+
+        identifiers = [ExternalIdentifier(PROVIDER_SPOTIFY, ID_TYPE_TRACK, item["id"])]
+        if isrc:
+            identifiers.append(ExternalIdentifier(PROVIDER_ISRC, ID_TYPE_ISRC, isrc))
 
         try:
             return Song(
-                track_id=item["id"],
+                # Spotify has no Audidle id to give, so its own id stands in.
+                # The Audidle catalog provider issues real internal ids.
+                id=item["id"],
                 title=item.get("name") or "Unknown title",
                 artist=self._join_artists(item.get("artists")),
-                isrc=(item.get("external_ids") or {}).get("isrc"),
+                external_ids=tuple(identifiers),
                 album=album.get("name"),
                 artwork_url=self._pick_artwork(album.get("images")),
                 external_url=(item.get("external_urls") or {}).get("spotify"),

@@ -20,20 +20,18 @@ class MockPopularityProvider(PopularityProvider):
     def __init__(self, catalog_path: Path) -> None:
         self._catalog = load_mock_catalog(catalog_path)
 
-    async def get_popularity(self, track_id: str) -> SongPopularity | None:
-        entry = self._catalog.get(track_id)
+    async def get_popularity(self, song_id: str) -> SongPopularity | None:
+        entry = self._catalog.get(song_id)
         return entry.popularity if entry else None
 
-    async def get_eligible_track_ids(self, criteria: SongSelectionCriteria) -> list[str]:
+    async def get_eligible_song_ids(self, criteria: SongSelectionCriteria) -> list[str]:
         candidates = self._catalog.by_difficulty.get(criteria.difficulty, [])
         # Exclusions are applied here because they are cheap and shrink the set
         # before SongService does the metadata filtering.
         return [
-            track_id
-            for track_id in candidates
-            if track_id not in criteria.exclude_track_ids
+            song_id for song_id in candidates if song_id not in criteria.exclude_song_ids
         ]
 
-    async def get_difficulty(self, track_id: str) -> Difficulty | None:
-        entry = self._catalog.get(track_id)
+    async def get_difficulty(self, song_id: str) -> Difficulty | None:
+        entry = self._catalog.get(song_id)
         return entry.popularity.difficulty if entry else None

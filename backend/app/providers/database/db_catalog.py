@@ -19,19 +19,39 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database.models import CuratedSong
 from app.models.enums import Difficulty
-from app.models.song import Song, SongPopularity, SongSelectionCriteria
+from app.models.song import (
+    ID_TYPE_ISRC,
+    ID_TYPE_TRACK,
+    PROVIDER_ISRC,
+    PROVIDER_SPOTIFY,
+    ExternalIdentifier,
+    Song,
+    SongPopularity,
+    SongSelectionCriteria,
+)
 from app.providers.base import PopularityProvider, SongCatalogProvider
 
 logger = logging.getLogger(__name__)
 
 
 def to_song(row: CuratedSong) -> Song:
-    """Map a database row onto the domain model."""
+    """Map a curated row onto the domain model.
+
+    The legacy table stores a Spotify track id as its key and a single ISRC
+    column, so both are surfaced as external identifiers here. The Audidle
+    catalog provider issues real internal ids instead.
+    """
+    identifiers = [
+        ExternalIdentifier(PROVIDER_SPOTIFY, ID_TYPE_TRACK, row.track_id),
+    ]
+    if row.isrc:
+        identifiers.append(ExternalIdentifier(PROVIDER_ISRC, ID_TYPE_ISRC, row.isrc))
+
     return Song(
-        track_id=row.track_id,
+        id=row.track_id,
         title=row.title,
         artist=row.artist,
-        isrc=row.isrc,
+        external_ids=tuple(identifiers),
         album=row.album,
         artwork_url=row.artwork_url,
         external_url=row.external_url,
@@ -54,6 +74,11 @@ class DbSongCatalogProvider(SongCatalogProvider):
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = session_factory
 
+    @property
+    def provider_name(self) -> str:
+        # The legacy curated table is keyed by Spotify track ids.
+        return "spotify"
+
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         normalized = f"%{query.strip().lower()}%"
         async with self._sessions() as session:
@@ -68,16 +93,16 @@ class DbSongCatalogProvider(SongCatalogProvider):
             rows = (await session.execute(statement)).scalars().all()
         return [to_song(row) for row in rows]
 
-    async def get_song(self, track_id: str) -> Song | None:
+    async def get_song(self, song_id: str) -> Song | None:
         async with self._sessions() as session:
-            row = await session.get(CuratedSong, track_id)
+            row = await session.get(CuratedSong, song_id)
         return to_song(row) if row else None
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
-        if not track_ids:
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
+        if not song_ids:
             return []
         async with self._sessions() as session:
-            statement = select(CuratedSong).where(CuratedSong.track_id.in_(track_ids))
+            statement = select(CuratedSong).where(CuratedSong.track_id.in_(song_ids))
             rows = (await session.execute(statement)).scalars().all()
         return [to_song(row) for row in rows]
 
@@ -100,22 +125,33 @@ class CompositeSongCatalogProvider(SongCatalogProvider):
         self._search = search_provider
         self._metadata = metadata_provider
 
+    @property
+    def provider_name(self) -> str:
+        # Results come from the search provider, so they are labelled with it.
+        return self._search.provider_name
+
+    async def resolve_external(self, provider: str, external_id: str) -> Song | None:
+        local = await self._metadata.resolve_external(provider, external_id)
+        if local is not None:
+            return local
+        return await self._search.resolve_external(provider, external_id)
+
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         return await self._search.search(query, limit=limit)
 
-    async def get_song(self, track_id: str) -> Song | None:
-        local = await self._metadata.get_song(track_id)
+    async def get_song(self, song_id: str) -> Song | None:
+        local = await self._metadata.get_song(song_id)
         if local is not None:
             return local
         # Not a curated song. Almost always a wrong guess, which still needs
         # resolving so it can be shown in the attempts list.
-        return await self._search.get_song(track_id)
+        return await self._search.get_song(song_id)
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
-        found = await self._metadata.get_songs(track_ids)
-        known = {song.track_id for song in found}
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
+        found = await self._metadata.get_songs(song_ids)
+        known = {song.id for song in found}
 
-        missing = [track_id for track_id in track_ids if track_id not in known]
+        missing = [song_id for song_id in song_ids if song_id not in known]
         if missing:
             found.extend(await self._search.get_songs(missing))
         return found
@@ -141,34 +177,34 @@ class DbPopularityProvider(PopularityProvider):
         # the catalog lacks audio.
         self._require_audio = require_audio
 
-    async def get_popularity(self, track_id: str) -> SongPopularity | None:
+    async def get_popularity(self, song_id: str) -> SongPopularity | None:
         async with self._sessions() as session:
-            row = await session.get(CuratedSong, track_id)
+            row = await session.get(CuratedSong, song_id)
         if row is None:
             return None
         return SongPopularity(
-            track_id=row.track_id,
+            song_id=row.track_id,
             difficulty=Difficulty(row.difficulty),
             stream_estimate=row.stream_estimate,
         )
 
-    async def get_eligible_track_ids(self, criteria: SongSelectionCriteria) -> list[str]:
+    async def get_eligible_song_ids(self, criteria: SongSelectionCriteria) -> list[str]:
         async with self._sessions() as session:
             statement = select(CuratedSong.track_id).where(
                 CuratedSong.difficulty == criteria.difficulty.value
             )
             if self._require_audio:
                 statement = statement.where(CuratedSong.audio_file.is_not(None))
-            if criteria.exclude_track_ids:
+            if criteria.exclude_song_ids:
                 statement = statement.where(
-                    CuratedSong.track_id.not_in(criteria.exclude_track_ids)
+                    CuratedSong.track_id.not_in(criteria.exclude_song_ids)
                 )
             # Metadata filters such as genre and decade are applied by
             # SongService, which holds the Song objects to test them against.
             rows = (await session.execute(statement)).scalars().all()
         return list(rows)
 
-    async def get_difficulty(self, track_id: str) -> Difficulty | None:
+    async def get_difficulty(self, song_id: str) -> Difficulty | None:
         async with self._sessions() as session:
-            row = await session.get(CuratedSong, track_id)
+            row = await session.get(CuratedSong, song_id)
         return Difficulty(row.difficulty) if row else None

@@ -47,8 +47,9 @@ def test_start_round_does_not_leak_the_answer(client):
     assert body["clip_duration"] == CLIP_STAGES[0]
     assert body["status"] == "playing"
 
-    # No identifying field of any kind.
-    for forbidden in ("title", "artist", "album", "song", "track_id", "external_url"):
+    # No identifying field, and no Audidle song id either: every catalog song
+    # has one, so leaking it would reveal which results could be the answer.
+    for forbidden in ("title", "artist", "album", "song", "song_id", "external_url"):
         assert forbidden not in body
 
     # And the audio URL is round scoped, not a filename that names the track.
@@ -78,7 +79,8 @@ def test_search_returns_guessable_results(client):
 
     assert body["results"]
     first = body["results"][0]
-    assert first["track_id"]
+    assert first["external_id"]
+    assert first["provider"] == "mock"
     assert first["title"]
     assert first["artist"]
 
@@ -121,7 +123,7 @@ def _peek_answer(round_id: str) -> str:
     from app.dependencies import get_round_repository
 
     repository = get_round_repository()
-    return repository._rounds[round_id].song_track_id
+    return repository._rounds[round_id].song_id
 
 
 def test_winning_round_reports_stages_used(client):
@@ -132,7 +134,8 @@ def test_winning_round_reports_stages_used(client):
     client.post(f"/api/game/{round_id}/skip")
 
     guess = client.post(
-        f"/api/game/{round_id}/guess", json={"track_id": _peek_answer(round_id)}
+        f"/api/game/{round_id}/guess",
+        json={"provider": "mock", "external_id": _peek_answer(round_id)},
     ).json()
 
     assert guess["correct"] is True
@@ -153,7 +156,10 @@ def test_wrong_guess_keeps_the_same_round_and_advances_one_stage(client):
     round_id = body["round_id"]
     answer = _peek_answer(round_id)
 
-    first = client.post(f"/api/game/{round_id}/guess", json={"track_id": "wrong-id"}).json()
+    first = client.post(
+        f"/api/game/{round_id}/guess",
+        json={"provider": "mock", "external_id": "wrong-id"},
+    ).json()
     second = client.post(f"/api/game/{round_id}/skip").json()
 
     assert first["correct"] is False
@@ -180,7 +186,9 @@ def test_finished_round_rejects_further_guesses(client):
     for _ in range(len(CLIP_STAGES)):
         client.post(f"/api/game/{round_id}/skip")
 
-    response = client.post(f"/api/game/{round_id}/guess", json={"track_id": "x"})
+    response = client.post(
+        f"/api/game/{round_id}/guess", json={"provider": "mock", "external_id": "x"}
+    )
 
     assert response.status_code == 409
     assert response.json()["code"] == "round_already_ended"
@@ -201,6 +209,6 @@ def test_recent_songs_are_avoided_within_a_session(client, difficulty):
         body = _start_round(client, difficulty=difficulty, session_id=session)
         client.post(f"/api/game/{body['round_id']}/abandon")
         result = client.get(f"/api/game/{body['round_id']}/result").json()
-        seen.append(result["song"]["track_id"])
+        seen.append(result["song"]["external_id"])
 
     assert len(set(seen)) == len(seen)

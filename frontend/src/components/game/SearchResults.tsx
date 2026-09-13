@@ -50,7 +50,7 @@ export function SearchResults({
   return (
     <ul className="search-results" role="listbox" aria-label="Song suggestions">
       {results.map((song, index) => (
-        <li key={song.track_id}>
+        <li key={`${song.provider}:${song.external_id}`}>
           <button
             type="button"
             role="option"

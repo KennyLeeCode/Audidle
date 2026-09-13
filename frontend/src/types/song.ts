@@ -5,8 +5,17 @@
  * only ever received from the result endpoint, after a round has ended.
  */
 
+/**
+ * A search result.
+ *
+ * Identified by the provider and that provider's own id, never by Audidle's
+ * internal song id. Every song in the catalog has one, so receiving it would
+ * tell the player which results could be the answer. The backend resolves the
+ * pair back to a song when the guess is submitted.
+ */
 export interface SongSummary {
-  track_id: string
+  provider: string
+  external_id: string
   title: string
   artist: string
   album: string | null
@@ -15,6 +24,7 @@ export interface SongSummary {
 
 export interface SongDetail extends SongSummary {
   release_year: number | null
+  isrc: string | null
   duration_ms: number | null
   explicit: boolean
   genres: string[]

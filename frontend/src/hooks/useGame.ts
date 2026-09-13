@@ -215,14 +215,15 @@ export function useGame(player: AudioPlayer, config: GameConfig): UseGameResult 
       const token = roundTokenRef.current
 
       try {
-        const response = await api.submitGuess(round.round_id, song.track_id)
+        const response = await api.submitGuess(round.round_id, song.provider, song.external_id)
         if (token !== roundTokenRef.current) return
 
         setRound(response.round)
         setGuesses((previous) => [
           ...previous,
           {
-            track_id: song.track_id,
+            provider: song.provider,
+            external_id: song.external_id,
             title: song.title,
             artist: song.artist,
             artwork_url: song.artwork_url,

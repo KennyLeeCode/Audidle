@@ -29,9 +29,9 @@ class DbAudioProvider(AudioProvider):
         self._sessions = session_factory
         self._audio_dir = audio_dir
 
-    async def _resolve_path(self, track_id: str) -> tuple[Path, int | None] | None:
+    async def _resolve_path(self, song_id: str) -> tuple[Path, int | None] | None:
         async with self._sessions() as session:
-            row = await session.get(CuratedSong, track_id)
+            row = await session.get(CuratedSong, song_id)
 
         if row is None or not row.audio_file:
             return None
@@ -43,25 +43,25 @@ class DbAudioProvider(AudioProvider):
         try:
             path.resolve().relative_to(self._audio_dir.resolve())
         except ValueError:
-            logger.error("audio path for %s escapes the audio directory", track_id)
+            logger.error("audio path for %s escapes the audio directory", song_id)
             return None
 
         if not path.is_file():
             # The row claims audio that is not on disk. Treated as unplayable so
             # selection moves on rather than failing the round.
-            logger.warning("audio file missing for %s: %s", track_id, row.audio_file)
+            logger.warning("audio file missing for %s: %s", song_id, row.audio_file)
             return None
 
         return path, row.duration_ms
 
-    async def get_playable_source(self, track_id: str) -> PlayableSource | None:
-        resolved = await self._resolve_path(track_id)
+    async def get_playable_source(self, song_id: str) -> PlayableSource | None:
+        resolved = await self._resolve_path(song_id)
         if resolved is None:
             return None
 
         _, duration_ms = resolved
         return PlayableSource(
-            track_id=track_id,
+            song_id=song_id,
             kind=PlayableSourceKind.FILE_URL,
             # Filled in with the round scoped proxy URL by the API layer, so the
             # filename never reaches the browser.
@@ -72,8 +72,8 @@ class DbAudioProvider(AudioProvider):
             supports_precise_clips=True,
         )
 
-    async def open_stream(self, track_id: str) -> tuple[bytes, str] | None:
-        resolved = await self._resolve_path(track_id)
+    async def open_stream(self, song_id: str) -> tuple[bytes, str] | None:
+        resolved = await self._resolve_path(song_id)
         if resolved is None:
             return None
 

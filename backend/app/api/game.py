@@ -86,7 +86,7 @@ async def get_round(
     contains no answer data.
     """
     game_round = await games.get_round(round_id)
-    source = await songs.get_playable_source(game_round.song_track_id)
+    source = await songs.get_playable_source(game_round.song_id)
     return _round_state(game_round, source)
 
 
@@ -103,8 +103,8 @@ async def submit_guess(
     The backend is authoritative here. The client reports which track the
     player picked, never whether that pick was right.
     """
-    result = await games.submit_guess(round_id, request.track_id)
-    source = await songs.get_playable_source(result.game_round.song_track_id)
+    result = await games.submit_guess(round_id, request.provider, request.external_id)
+    source = await songs.get_playable_source(result.game_round.song_id)
 
     return GuessResponse(
         correct=result.correct,
@@ -129,7 +129,7 @@ async def skip_stage(
     This does not change the song. On the final stage it ends the round.
     """
     game_round = await games.skip_stage(round_id)
-    source = await songs.get_playable_source(game_round.song_track_id)
+    source = await songs.get_playable_source(game_round.song_id)
     return _round_state(game_round, source)
 
 
@@ -146,7 +146,7 @@ async def abandon_round(
     Distinct from skip. The client follows this with a fresh POST /round.
     """
     game_round = await games.abandon_round(round_id)
-    source = await songs.get_playable_source(game_round.song_track_id)
+    source = await songs.get_playable_source(game_round.song_id)
     return _round_state(game_round, source)
 
 
@@ -191,7 +191,7 @@ async def get_round_audio(
     every stage would make replaying a clip feel sluggish.
     """
     game_round = await games.get_round(round_id)
-    stream = await songs.open_stream(game_round.song_track_id)
+    stream = await songs.open_stream(game_round.song_id)
     if stream is None:
         raise SongNotFoundError("no audio stream is available for this round")
 

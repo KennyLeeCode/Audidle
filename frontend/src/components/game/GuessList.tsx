@@ -19,7 +19,7 @@ export function GuessList({ guesses }: GuessListProps) {
   return (
     <ul className="guess-list" aria-label="Your guesses">
       {guesses.map((guess, index) => (
-        <li className="guess-list__item" key={`${guess.track_id}-${index}`}>
+        <li className="guess-list__item" key={`${guess.external_id}-${index}`}>
           <span className="guess-list__marker" aria-hidden="true" />
           <span className="guess-list__title">{guess.title}</span>
           <span className="guess-list__artist">{guess.artist}</span>

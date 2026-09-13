@@ -12,7 +12,15 @@ from pathlib import Path
 
 from app.config.difficulties import difficulty_for_streams
 from app.models.enums import Difficulty
-from app.models.song import Song, SongPopularity
+from app.models.song import (
+    ID_TYPE_ISRC,
+    ID_TYPE_TRACK,
+    PROVIDER_ISRC,
+    PROVIDER_MOCK,
+    ExternalIdentifier,
+    Song,
+    SongPopularity,
+)
 
 
 @dataclass(frozen=True)
@@ -31,8 +39,8 @@ class MockCatalog:
     entries: dict[str, MockCatalogEntry]
     by_difficulty: dict[Difficulty, list[str]]
 
-    def get(self, track_id: str) -> MockCatalogEntry | None:
-        return self.entries.get(track_id)
+    def get(self, song_id: str) -> MockCatalogEntry | None:
+        return self.entries.get(song_id)
 
     @property
     def songs(self) -> list[Song]:
@@ -41,11 +49,15 @@ class MockCatalog:
 
 def _build_entry(raw: dict) -> MockCatalogEntry:
     streams = int(raw["stream_estimate"])
+    identifiers = [ExternalIdentifier(PROVIDER_MOCK, ID_TYPE_TRACK, raw["track_id"])]
+    if raw.get("isrc"):
+        identifiers.append(ExternalIdentifier(PROVIDER_ISRC, ID_TYPE_ISRC, raw["isrc"]))
+
     song = Song(
-        track_id=raw["track_id"],
+        id=raw["track_id"],
         title=raw["title"],
         artist=raw["artist"],
-        isrc=raw.get("isrc"),
+        external_ids=tuple(identifiers),
         album=raw.get("album"),
         artwork_url=raw.get("artwork_url"),
         external_url=raw.get("external_url"),
@@ -55,7 +67,7 @@ def _build_entry(raw: dict) -> MockCatalogEntry:
         genres=tuple(raw.get("genres", ())),
     )
     popularity = SongPopularity(
-        track_id=song.track_id,
+        song_id=song.id,
         difficulty=difficulty_for_streams(streams),
         stream_estimate=streams,
     )
@@ -71,7 +83,7 @@ def load_mock_catalog(path: Path) -> MockCatalog:
 
     for raw_song in raw["songs"]:
         entry = _build_entry(raw_song)
-        entries[entry.song.track_id] = entry
-        by_difficulty[entry.popularity.difficulty].append(entry.song.track_id)
+        entries[entry.song.id] = entry
+        by_difficulty[entry.popularity.difficulty].append(entry.song.id)
 
     return MockCatalog(entries=entries, by_difficulty=by_difficulty)

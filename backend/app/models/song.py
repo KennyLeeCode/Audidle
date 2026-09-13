@@ -1,33 +1,65 @@
-"""Domain models for songs and their audio sources.
+"""Domain models for songs, their identifiers, and their audio sources.
 
-These are provider agnostic on purpose. A Spotify track, a local file, and a
-future third provider all normalize into Song, so nothing above the provider
-layer ever needs to know where a song came from.
+Identity is the important idea here. A song's `id` is Audidle's own, and the
+rest of the application keys on it without knowing or caring where the metadata
+came from. Provider ids live in `external_ids` alongside each other, so Spotify,
+MusicBrainz, and an ISRC are all just identifiers attached to one recording
+rather than competing notions of what the song *is*.
+
+Providers that have no catalog of their own, such as the mock and Spotify
+catalogs, use their native id as the Audidle id. That is a deliberate shortcut
+for those paths: they are search and enrichment sources, and the Audidle catalog
+provider is the one that issues real internal ids.
 """
 
 from dataclasses import dataclass, field
 
 from app.models.enums import Difficulty, PlayableSourceKind
 
+# -- Identifier vocabulary --------------------------------------------------
+# Kept as constants rather than an enum so a new provider is a new string in one
+# place and not a schema migration.
+
+PROVIDER_AUDIDLE = "audidle"
+PROVIDER_SPOTIFY = "spotify"
+PROVIDER_MUSICBRAINZ = "musicbrainz"
+PROVIDER_ISRC = "isrc"
+PROVIDER_MOCK = "mock"
+
+ID_TYPE_TRACK = "track_id"
+ID_TYPE_RECORDING_MBID = "recording_mbid"
+ID_TYPE_ARTIST_MBID = "artist_mbid"
+ID_TYPE_ISRC = "isrc"
+
+
+@dataclass(frozen=True)
+class ExternalIdentifier:
+    """One external id attached to a song.
+
+    A song can carry several of these, including more than one ISRC, which is
+    why they are a collection rather than columns on the song itself.
+    """
+
+    provider: str
+    identifier_type: str
+    identifier: str
+
+    def matches(self, provider: str, identifier: str) -> bool:
+        return self.provider == provider and self.identifier == identifier
+
 
 @dataclass(frozen=True)
 class Song:
-    """One track, as the rest of the application sees it.
+    """One recording, as the rest of the application sees it.
 
-    track_id is the canonical identity used for guess comparison. Guesses are
-    always compared on this field and never on title strings, which is what
-    keeps "Blinding Lights" and "Blinding Lights - Single Version" from being
-    treated as the same answer.
+    `id` is Audidle's identity for the recording. Guess comparison happens on it
+    first, and falls back to the cross-provider tests in guess_matcher when a
+    player picks a different release of the same song.
     """
 
-    track_id: str
+    id: str
     title: str
     artist: str
-    # International Standard Recording Code. Identifies the *recording* rather
-    # than the release, so the album cut and the single of the same master
-    # share one ISRC where their track ids differ. This is what makes guess
-    # matching work across duplicate catalog entries.
-    isrc: str | None = None
     album: str | None = None
     artwork_url: str | None = None
     external_url: str | None = None
@@ -35,6 +67,43 @@ class Song:
     duration_ms: int | None = None
     explicit: bool = False
     genres: tuple[str, ...] = field(default_factory=tuple)
+    external_ids: tuple[ExternalIdentifier, ...] = field(default_factory=tuple)
+
+    @property
+    def isrcs(self) -> tuple[str, ...]:
+        """Every ISRC known for this recording.
+
+        Plural because a recording legitimately carries more than one, for
+        example when it is released in several territories.
+        """
+        return tuple(
+            identifier.identifier
+            for identifier in self.external_ids
+            if identifier.identifier_type == ID_TYPE_ISRC
+        )
+
+    @property
+    def isrc(self) -> str | None:
+        """The primary ISRC, for the common single-value case."""
+        found = self.isrcs
+        return found[0] if found else None
+
+    @property
+    def musicbrainz_id(self) -> str | None:
+        return self.external_id(PROVIDER_MUSICBRAINZ, ID_TYPE_RECORDING_MBID)
+
+    @property
+    def spotify_id(self) -> str | None:
+        return self.external_id(PROVIDER_SPOTIFY, ID_TYPE_TRACK)
+
+    def external_id(self, provider: str, identifier_type: str) -> str | None:
+        for identifier in self.external_ids:
+            if (
+                identifier.provider == provider
+                and identifier.identifier_type == identifier_type
+            ):
+                return identifier.identifier
+        return None
 
     @property
     def decade(self) -> int | None:
@@ -43,20 +112,38 @@ class Song:
 
     @property
     def search_label(self) -> str:
-        """Human readable label used in search results and logs."""
+        """Human readable label used in logs."""
         return f"{self.title} - {self.artist}"
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    """A song as offered to the player in the guess autocomplete.
+
+    Carries the provider and the provider's own id, never Audidle's. That is a
+    security property rather than a convenience: every song in our catalog has
+    an Audidle id, so exposing one would tell the player which results are
+    possible answers. Resolution back to an Audidle song happens server side
+    when the guess is submitted.
+    """
+
+    provider: str
+    external_id: str
+    title: str
+    artist: str
+    album: str | None = None
+    artwork_url: str | None = None
 
 
 @dataclass(frozen=True)
 class SongPopularity:
     """What a PopularityProvider knows about one song.
 
-    stream_estimate is optional because Spotify's Web API does not expose
-    stream counts. A dataset backed provider fills it in, a popularity-score
-    based provider leaves it None and supplies popularity_score instead.
+    stream_estimate is optional because most sources cannot supply one. Spotify
+    exposes no stream counts at all, so this comes from our own data.
     """
 
-    track_id: str
+    song_id: str
     difficulty: Difficulty
     stream_estimate: int | None = None
     popularity_score: int | None = None
@@ -68,20 +155,18 @@ class PlayableSource:
 
     Deliberately not audio bytes. The backend says what kind of source this is
     and whether exact sub second clipping is possible, and the frontend picks a
-    playback engine accordingly. Swapping audio backends later changes what
-    this struct contains, and changes nothing in the game rules.
+    playback engine accordingly.
 
     supports_precise_clips is the important field. File sources are decodable,
     so Web Audio can schedule a 0.01s clip to the sample. Spotify's DRM player
     cannot, and the UI reports that honestly rather than pretending.
     """
 
-    track_id: str
+    song_id: str
     kind: PlayableSourceKind
     # Relative URL the browser fetches for FILE_URL sources. Deliberately
     # opaque so the filename cannot leak the answer in devtools.
     url: str | None = None
-    # Spotify URI for SPOTIFY_SDK sources.
     spotify_uri: str | None = None
     duration_ms: int | None = None
     supports_precise_clips: bool = False
@@ -97,7 +182,7 @@ class SongSelectionCriteria:
     """
 
     difficulty: Difficulty
-    exclude_track_ids: frozenset[str] = frozenset()
+    exclude_song_ids: frozenset[str] = frozenset()
     genres: tuple[str, ...] | None = None
     decades: tuple[int, ...] | None = None
     release_year_min: int | None = None
@@ -110,7 +195,7 @@ class SongSelectionCriteria:
         Difficulty is applied by the PopularityProvider, which owns the
         song-to-tier mapping, so it is not re-checked here.
         """
-        if song.track_id in self.exclude_track_ids:
+        if song.id in self.exclude_song_ids:
             return False
         if self.genres and not set(self.genres) & set(song.genres):
             return False

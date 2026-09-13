@@ -105,7 +105,7 @@ class GameService:
 
         game_round = GameRound(
             round_id=new_round_id(),
-            song_track_id=song.track_id,
+            song_id=song.id,
             difficulty=difficulty,
             session_id=session_id,
             start_mode=start_mode,
@@ -116,7 +116,7 @@ class GameService:
 
         await self._rounds.save(game_round)
         if session_id:
-            self._recent.record(session_id, song.track_id)
+            self._recent.record(session_id, song.id)
 
         logger.info(
             "round %s opened on difficulty %s at stage 0",
@@ -148,11 +148,15 @@ class GameService:
 
     # -- Player actions -----------------------------------------------------
 
-    async def submit_guess(self, round_id: str, track_id: str) -> GuessResult:
+    async def submit_guess(
+        self, round_id: str, provider: str, external_id: str
+    ) -> GuessResult:
         """Validate a guess against the round's hidden answer.
 
-        The guess is always a track id chosen from search results, never free
-        text, which is why the client cannot submit an arbitrary string.
+        The client submits a provider and that provider's id, exactly as the
+        search result carried them. It never holds an Audidle song id, so the
+        payload reveals nothing about which songs are in our catalog. Resolving
+        the guess to a song happens here.
 
         Matching is delegated to guess_matcher rather than being a bare id
         comparison, because real catalogs carry one recording under many ids.
@@ -160,8 +164,11 @@ class GameService:
         """
         game_round = await self._get_active_round(round_id)
 
-        correct = await self._is_correct(game_round.song_track_id, track_id)
-        game_round.record_guess(track_id, correct)
+        guessed = await self._songs.resolve_external(provider, external_id)
+        correct = await self._is_correct(game_round.song_id, guessed)
+        # The guess is recorded by whatever id we could resolve it to, falling
+        # back to the provider id so an unresolvable guess is still recorded.
+        game_round.record_guess(guessed.id if guessed else external_id, correct)
 
         if correct:
             game_round.finish(RoundOutcome.WON)
@@ -170,11 +177,7 @@ class GameService:
             self._advance_or_fail(game_round)
 
         await self._rounds.save(game_round)
-
-        # Looked up after the comparison, so an unknown track id is still a
-        # normal wrong guess rather than an error.
-        guessed_track = await self._songs.get_song(track_id)
-        return GuessResult(game_round, correct, guessed_track)
+        return GuessResult(game_round, correct, guessed)
 
     async def skip_stage(self, round_id: str) -> GameRound:
         """Give up the current guess attempt and unlock more of the same song.
@@ -217,36 +220,34 @@ class GameService:
         if game_round.is_active:
             raise RoundStillActiveError("round is still playing, the answer is not available yet")
 
-        song = await self._songs.get_song(game_round.song_track_id)
+        song = await self._songs.get_song(game_round.song_id)
         if song is None:
             raise SongNotFoundError("the song for this round is no longer in the catalog")
 
-        source = await self._songs.get_playable_source(game_round.song_track_id)
+        source = await self._songs.get_playable_source(game_round.song_id)
         return game_round, song, source
 
     # -- Internal -----------------------------------------------------------
 
-    async def _is_correct(self, answer_track_id: str, guess_track_id: str) -> bool:
-        """Compare a guess against the answer.
+    async def _is_correct(self, answer_song_id: str, guess: Song | None) -> bool:
+        """Compare a resolved guess against the answer.
 
-        The fast path is an id match, which needs no catalog lookups at all and
-        covers the large majority of correct guesses. Only when that fails is it
-        worth resolving both songs to compare ISRCs and titles.
+        The fast path is an Audidle id match, which needs no further lookups.
+        Only when that fails is it worth resolving the answer to compare ISRCs
+        and normalized titles, which is what accepts a different release of the
+        same recording.
         """
-        if guess_track_id == answer_track_id:
-            return True
-
-        guess = await self._songs.get_song(guess_track_id)
         if guess is None:
-            # An id the catalog does not know cannot be the answer. A normal
+            # A provider id nothing could resolve cannot be the answer. A normal
             # wrong guess, not an error.
             return False
 
-        answer = await self._songs.get_song(answer_track_id)
+        if guess.id == answer_song_id:
+            return True
+
+        answer = await self._songs.get_song(answer_song_id)
         if answer is None:
-            # The catalog lost the answer mid round. Falling back to the id
-            # comparison already made above, which was False.
-            logger.warning("could not resolve the answer track %s", answer_track_id)
+            logger.warning("could not resolve the answer song %s", answer_song_id)
             return False
 
         return is_same_song(guess, answer)
@@ -260,7 +261,7 @@ class GameService:
             return criteria
         return SongSelectionCriteria(
             difficulty=criteria.difficulty,
-            exclude_track_ids=criteria.exclude_track_ids | recent,
+            exclude_song_ids=criteria.exclude_song_ids | recent,
             genres=criteria.genres,
             decades=criteria.decades,
             release_year_min=criteria.release_year_min,

@@ -15,7 +15,7 @@ from app.core.errors import (
 )
 from app.models.enums import Difficulty, GameStatus, RoundOutcome
 
-WRONG_TRACK_ID = "definitely-not-the-answer"
+WRONG_GUESS = ("mock", "definitely-not-the-answer")
 
 
 async def _start(game_service, difficulty=Difficulty.EASY):
@@ -33,7 +33,7 @@ async def test_round_starts_at_first_stage(game_service):
     assert game_round.stage_index == 0
     assert game_round.clip_duration == CLIP_STAGES[0]
     assert game_round.status is GameStatus.PLAYING
-    assert game_round.song_track_id
+    assert game_round.song_id
 
 
 @pytest.mark.anyio
@@ -53,36 +53,36 @@ async def test_round_has_a_playable_source(game_service):
 async def test_song_never_changes_across_wrong_guesses(game_service):
     """The single most important rule in the game."""
     game_round, _ = await _start(game_service)
-    original_song = game_round.song_track_id
+    original_song = game_round.song_id
 
     for _ in range(FINAL_STAGE_INDEX):
-        result = await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
+        result = await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
         assert result.correct is False
-        assert result.game_round.song_track_id == original_song
+        assert result.game_round.song_id == original_song
 
 
 @pytest.mark.anyio
 async def test_song_never_changes_across_skips(game_service):
     game_round, _ = await _start(game_service)
-    original_song = game_round.song_track_id
+    original_song = game_round.song_id
 
     for _ in range(FINAL_STAGE_INDEX):
         updated = await game_service.skip_stage(game_round.round_id)
-        assert updated.song_track_id == original_song
+        assert updated.song_id == original_song
 
 
 @pytest.mark.anyio
 async def test_song_never_changes_across_a_mixed_run(game_service):
     """The exact sequence from the specification: wrong, wrong, skip, wrong."""
     game_round, _ = await _start(game_service)
-    original_song = game_round.song_track_id
+    original_song = game_round.song_id
 
-    await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
-    await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
+    await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
+    await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
     await game_service.skip_stage(game_round.round_id)
-    result = await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
+    result = await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
 
-    assert result.game_round.song_track_id == original_song
+    assert result.game_round.song_id == original_song
     assert result.game_round.stage_index == 4
     assert result.game_round.clip_duration == CLIP_STAGES[4]
 
@@ -91,7 +91,7 @@ async def test_song_never_changes_across_a_mixed_run(game_service):
 async def test_wrong_guess_advances_exactly_one_stage(game_service):
     game_round, _ = await _start(game_service)
 
-    result = await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
+    result = await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
 
     assert result.game_round.stage_index == 1
     assert result.game_round.clip_duration == CLIP_STAGES[1]
@@ -128,12 +128,12 @@ async def test_reaching_the_final_stage_does_not_end_the_round(game_service):
 @pytest.mark.anyio
 async def test_correct_guess_on_the_final_stage_wins(game_service):
     game_round, _ = await _start(game_service)
-    answer = game_round.song_track_id
+    answer = game_round.song_id
 
     for _ in range(FINAL_STAGE_INDEX):
         await game_service.skip_stage(game_round.round_id)
 
-    result = await game_service.submit_guess(game_round.round_id, answer)
+    result = await game_service.submit_guess(game_round.round_id, "mock", answer)
 
     assert result.correct is True
     assert result.game_round.outcome is RoundOutcome.WON
@@ -149,7 +149,7 @@ async def test_wrong_guess_on_the_final_stage_fails(game_service):
     for _ in range(FINAL_STAGE_INDEX):
         await game_service.skip_stage(game_round.round_id)
 
-    result = await game_service.submit_guess(game_round.round_id, WRONG_TRACK_ID)
+    result = await game_service.submit_guess(game_round.round_id, *WRONG_GUESS)
 
     assert result.correct is False
     assert result.round_ended is True
@@ -177,12 +177,12 @@ async def test_skip_on_the_final_stage_fails(game_service):
 @pytest.mark.parametrize("stage", range(STAGE_COUNT))
 async def test_correct_guess_wins_at_every_stage(game_service, stage):
     game_round, _ = await _start(game_service)
-    answer = game_round.song_track_id
+    answer = game_round.song_id
 
     for _ in range(stage):
         await game_service.skip_stage(game_round.round_id)
 
-    result = await game_service.submit_guess(game_round.round_id, answer)
+    result = await game_service.submit_guess(game_round.round_id, "mock", answer)
 
     assert result.correct is True
     assert result.game_round.outcome is RoundOutcome.WON
@@ -204,12 +204,12 @@ async def test_result_is_refused_while_the_round_is_active(game_service):
 @pytest.mark.anyio
 async def test_result_reveals_the_song_once_the_round_ends(game_service):
     game_round, _ = await _start(game_service)
-    answer = game_round.song_track_id
-    await game_service.submit_guess(game_round.round_id, answer)
+    answer = game_round.song_id
+    await game_service.submit_guess(game_round.round_id, "mock", answer)
 
     finished, song, source = await game_service.get_result(game_round.round_id)
 
-    assert song.track_id == answer
+    assert song.id == answer
     assert finished.outcome is RoundOutcome.WON
     # Full track playback on the reveal screen needs a source.
     assert source is not None
@@ -219,10 +219,10 @@ async def test_result_reveals_the_song_once_the_round_ends(game_service):
 async def test_finished_rounds_reject_further_actions(game_service):
     """Covers double submits and replayed requests."""
     game_round, _ = await _start(game_service)
-    await game_service.submit_guess(game_round.round_id, game_round.song_track_id)
+    await game_service.submit_guess(game_round.round_id, "mock", game_round.song_id)
 
     with pytest.raises(RoundAlreadyEndedError):
-        await game_service.submit_guess(game_round.round_id, "anything")
+        await game_service.submit_guess(game_round.round_id, "mock", "anything")
 
     with pytest.raises(RoundAlreadyEndedError):
         await game_service.skip_stage(game_round.round_id)
@@ -232,8 +232,8 @@ async def test_finished_rounds_reject_further_actions(game_service):
 async def test_starting_a_new_round_leaves_the_old_one_intact(game_service):
     """Rule 13 and 14: the finished round is not replaced or mutated."""
     first, _ = await _start(game_service)
-    await game_service.submit_guess(first.round_id, first.song_track_id)
-    first_answer = first.song_track_id
+    await game_service.submit_guess(first.round_id, "mock", first.song_id)
+    first_answer = first.song_id
 
     second, _ = await _start(game_service)
 
@@ -242,7 +242,7 @@ async def test_starting_a_new_round_leaves_the_old_one_intact(game_service):
     assert second.status is GameStatus.PLAYING
 
     reloaded, song, _ = await game_service.get_result(first.round_id)
-    assert song.track_id == first_answer
+    assert song.id == first_answer
     assert reloaded.status is GameStatus.REVEALING
 
 
@@ -292,7 +292,7 @@ async def test_guessing_an_unknown_track_is_a_normal_wrong_guess(game_service):
     """An id that is not in the catalog must not crash the round."""
     game_round, _ = await _start(game_service)
 
-    result = await game_service.submit_guess(game_round.round_id, "not-a-real-id")
+    result = await game_service.submit_guess(game_round.round_id, "mock", "not-a-real-id")
 
     assert result.correct is False
     assert result.guessed_track is None

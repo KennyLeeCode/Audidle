@@ -79,12 +79,16 @@ class RoundStateResponse(BaseModel):
 class SubmitGuessRequest(BaseModel):
     """Body for a guess.
 
-    A track id, not a string. The client must submit a song it picked from
-    search results, which is what makes id comparison possible and stops
-    "Blinding Lights" matching "Blinding Lights - Single Version".
+    A provider and that provider's id, exactly as the search result carried
+    them. The client never sees or sends an Audidle song id, so the payload
+    gives away nothing about which songs are in our catalog.
+
+    Still a chosen result rather than free text, which is what makes identity
+    comparison possible instead of string matching.
     """
 
-    track_id: str = Field(min_length=1, description="Track id chosen from search results")
+    provider: str = Field(min_length=1, description="Provider the result came from")
+    external_id: str = Field(min_length=1, description="That provider's id for the song")
 
 
 class GuessResponse(BaseModel):

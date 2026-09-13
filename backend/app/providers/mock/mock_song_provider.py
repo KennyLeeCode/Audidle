@@ -18,6 +18,10 @@ class MockSongProvider(SongCatalogProvider):
     def __init__(self, catalog_path: Path) -> None:
         self._catalog = load_mock_catalog(catalog_path)
 
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         normalized = query.strip().lower()
         if not normalized:
@@ -33,12 +37,12 @@ class MockSongProvider(SongCatalogProvider):
         scored.sort(key=lambda pair: (-pair[0], pair[1].title))
         return [song for _, song in scored[:limit]]
 
-    async def get_song(self, track_id: str) -> Song | None:
-        entry = self._catalog.get(track_id)
+    async def get_song(self, song_id: str) -> Song | None:
+        entry = self._catalog.get(song_id)
         return entry.song if entry else None
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
-        found = [self._catalog.get(track_id) for track_id in track_ids]
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
+        found = [self._catalog.get(song_id) for song_id in song_ids]
         return [entry.song for entry in found if entry is not None]
 
     @staticmethod

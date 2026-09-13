@@ -7,26 +7,33 @@ deliberate decision rather than an accident of the internal representation.
 from pydantic import BaseModel, Field
 
 from app.models.enums import PlayableSourceKind
-from app.models.song import PlayableSource, Song
+from app.models.song import ID_TYPE_TRACK, PROVIDER_SPOTIFY, PlayableSource, Song
 
 
 class SongSummary(BaseModel):
     """A song as shown in search results.
 
-    Safe to return at any time. Search must never mark or omit the round's
-    answer, because either would identify it visually.
+    Carries the provider and that provider's own id, never Audidle's song id.
+    Every song in our catalog has an Audidle id, so returning one would tell the
+    player which results are possible answers. Resolution back to an Audidle
+    song happens server side when the guess is submitted.
+
+    Search must also never mark or omit the round's answer, since either would
+    identify it visually.
     """
 
-    track_id: str = Field(description="Canonical id, submitted as a guess")
+    provider: str = Field(description="Which catalog this result came from")
+    external_id: str = Field(description="That provider's id, submitted as a guess")
     title: str
     artist: str
     album: str | None = None
     artwork_url: str | None = None
 
     @classmethod
-    def from_domain(cls, song: Song) -> "SongSummary":
+    def from_domain(cls, song: Song, provider: str) -> "SongSummary":
         return cls(
-            track_id=song.track_id,
+            provider=provider,
+            external_id=song.external_id(provider, ID_TYPE_TRACK) or song.id,
             title=song.title,
             artist=song.artist,
             album=song.album,
@@ -41,14 +48,16 @@ class SongDetail(SongSummary):
     duration_ms: int | None = None
     explicit: bool = False
     genres: list[str] = Field(default_factory=list)
+    isrc: str | None = None
     external_url: str | None = Field(
         default=None, description="Link out to the track, for example on Spotify"
     )
 
     @classmethod
-    def from_domain(cls, song: Song) -> "SongDetail":
+    def from_domain(cls, song: Song, provider: str = PROVIDER_SPOTIFY) -> "SongDetail":
         return cls(
-            track_id=song.track_id,
+            provider=provider,
+            external_id=song.external_id(provider, ID_TYPE_TRACK) or song.id,
             title=song.title,
             artist=song.artist,
             album=song.album,
@@ -57,6 +66,7 @@ class SongDetail(SongSummary):
             duration_ms=song.duration_ms,
             explicit=song.explicit,
             genres=list(song.genres),
+            isrc=song.isrc,
             external_url=song.external_url,
         )
 

@@ -51,7 +51,7 @@ class SongService:
         """
         candidates = await self._eligible_songs(criteria)
 
-        if not candidates and criteria.exclude_track_ids:
+        if not candidates and criteria.exclude_song_ids:
             # Recent-song exclusion is best effort. Falling back to a possible
             # repeat beats telling the player there are no songs left.
             logger.info("recent song exclusion emptied the pool, relaxing it")
@@ -80,9 +80,9 @@ class SongService:
                 break
             attempted += 1
 
-            source = await self._audio.get_playable_source(song.track_id)
+            source = await self._audio.get_playable_source(song.id)
             if source is None:
-                logger.warning("song %s has no playable source, trying another", song.track_id)
+                logger.warning("song %s has no playable source, trying another", song.id)
                 continue
             return song, source
 
@@ -91,16 +91,29 @@ class SongService:
             f"for difficulty '{criteria.difficulty.value}'"
         )
 
-    async def get_playable_source(self, track_id: str) -> PlayableSource | None:
+    async def get_playable_source(self, song_id: str) -> PlayableSource | None:
         """Re-resolve a song's audio source, for example on round reload."""
-        return await self._audio.get_playable_source(track_id)
+        return await self._audio.get_playable_source(song_id)
 
-    async def open_stream(self, track_id: str) -> tuple[bytes, str] | None:
+    async def open_stream(self, song_id: str) -> tuple[bytes, str] | None:
         """Read raw audio bytes for the round scoped audio proxy route."""
-        return await self._audio.open_stream(track_id)
+        return await self._audio.open_stream(song_id)
 
-    async def get_song(self, track_id: str) -> Song | None:
-        return await self._catalog.get_song(track_id)
+    async def get_song(self, song_id: str) -> Song | None:
+        return await self._catalog.get_song(song_id)
+
+    @property
+    def provider_name(self) -> str:
+        """Which provider search results are labelled with."""
+        return self._catalog.provider_name
+
+    async def resolve_external(self, provider: str, external_id: str) -> Song | None:
+        """Resolve a provider's own id back to a song.
+
+        The server side half of the guess flow. The client only ever holds
+        provider ids, so this is where a submitted guess becomes a song.
+        """
+        return await self._catalog.resolve_external(provider, external_id)
 
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         return await self._catalog.search(query, limit=limit)
@@ -112,8 +125,8 @@ class SongService:
         owns the tier mapping. Metadata filters are applied here, where the
         Song objects actually exist.
         """
-        track_ids = await self._popularity.get_eligible_track_ids(criteria)
-        if not track_ids:
+        song_ids = await self._popularity.get_eligible_song_ids(criteria)
+        if not song_ids:
             return []
-        songs = await self._catalog.get_songs(track_ids)
+        songs = await self._catalog.get_songs(song_ids)
         return [song for song in songs if criteria.matches(song)]

@@ -26,8 +26,8 @@ class MockAudioProvider(AudioProvider):
         self._catalog = load_mock_catalog(catalog_path)
         self._audio_dir = audio_dir
 
-    def _file_path(self, track_id: str) -> Path | None:
-        entry = self._catalog.get(track_id)
+    def _file_path(self, song_id: str) -> Path | None:
+        entry = self._catalog.get(song_id)
         if entry is None:
             return None
         path = self._audio_dir / entry.audio_file
@@ -35,14 +35,14 @@ class MockAudioProvider(AudioProvider):
         # as "this candidate is unplayable" and draws a different song.
         return path if path.is_file() else None
 
-    async def get_playable_source(self, track_id: str) -> PlayableSource | None:
-        path = self._file_path(track_id)
+    async def get_playable_source(self, song_id: str) -> PlayableSource | None:
+        path = self._file_path(song_id)
         if path is None:
             return None
 
-        entry = self._catalog.get(track_id)
+        entry = self._catalog.get(song_id)
         return PlayableSource(
-            track_id=track_id,
+            song_id=song_id,
             kind=PlayableSourceKind.FILE_URL,
             # Filled in with the round scoped proxy URL by SongService. Left
             # None here so the provider never assumes an HTTP routing shape.
@@ -51,8 +51,8 @@ class MockAudioProvider(AudioProvider):
             supports_precise_clips=True,
         )
 
-    async def open_stream(self, track_id: str) -> tuple[bytes, str] | None:
-        path = self._file_path(track_id)
+    async def open_stream(self, song_id: str) -> tuple[bytes, str] | None:
+        path = self._file_path(song_id)
         if path is None:
             return None
         mime_type, _ = mimetypes.guess_type(path.name)

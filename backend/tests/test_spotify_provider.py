@@ -65,7 +65,7 @@ async def test_maps_a_track_onto_the_domain_model():
     song = await provider.get_song("0VjIjW4GlUZAMYd2vXMi3b")
 
     assert song is not None
-    assert song.track_id == "0VjIjW4GlUZAMYd2vXMi3b"
+    assert song.id == "0VjIjW4GlUZAMYd2vXMi3b"
     assert song.title == "Blinding Lights"
     assert song.artist == "The Weeknd"
     assert song.album == "After Hours"
@@ -192,6 +192,10 @@ async def test_batch_lookup_drops_nulls_for_unknown_ids():
 class CountingProvider(SongCatalogProvider):
     """Counts how often it is actually reached, to prove caching works."""
 
+    @property
+    def provider_name(self) -> str:
+        return "counting"
+
     def __init__(self) -> None:
         self.search_calls = 0
         self.song_calls = 0
@@ -199,15 +203,15 @@ class CountingProvider(SongCatalogProvider):
 
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         self.search_calls += 1
-        return [Song(track_id="a", title="A Song", artist="An Artist")]
+        return [Song(id="a", title="A Song", artist="An Artist")]
 
-    async def get_song(self, track_id: str) -> Song | None:
+    async def get_song(self, song_id: str) -> Song | None:
         self.song_calls += 1
-        return Song(track_id=track_id, title="A Song", artist="An Artist")
+        return Song(id=song_id, title="A Song", artist="An Artist")
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
-        self.batch_ids.append(track_ids)
-        return [Song(track_id=tid, title="A Song", artist="An Artist") for tid in track_ids]
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
+        self.batch_ids.append(song_ids)
+        return [Song(id=sid, title="A Song", artist="An Artist") for sid in song_ids]
 
 
 @pytest.mark.anyio

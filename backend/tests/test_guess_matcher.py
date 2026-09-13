@@ -12,12 +12,16 @@ important one, since a false positive hands the player a win they did not earn.
 
 import pytest
 
-from app.models.song import Song
+from app.models.song import ID_TYPE_ISRC, PROVIDER_ISRC, ExternalIdentifier, Song
 from app.services.guess_matcher import is_same_song, normalize_artist, normalize_title
 
 
-def song(track_id: str, title: str, artist: str, isrc: str | None = None) -> Song:
-    return Song(track_id=track_id, title=title, artist=artist, isrc=isrc)
+def song(song_id: str, title: str, artist: str, isrc: str | None = None) -> Song:
+    """Build a song, attaching the ISRC as an external identifier."""
+    identifiers = (
+        (ExternalIdentifier(PROVIDER_ISRC, ID_TYPE_ISRC, isrc),) if isrc else ()
+    )
+    return Song(id=song_id, title=title, artist=artist, external_ids=identifiers)
 
 
 # -- Normalization ----------------------------------------------------------

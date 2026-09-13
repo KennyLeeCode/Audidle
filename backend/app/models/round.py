@@ -25,7 +25,7 @@ def _utc_now() -> datetime:
 class Guess:
     """One submitted guess, kept for the reveal summary and duplicate checks."""
 
-    track_id: str
+    song_id: str
     correct: bool
     stage_index: int
     submitted_at: datetime = field(default_factory=_utc_now)
@@ -43,7 +43,7 @@ class GameRound:
     round_id: str
     # THE ANSWER. Assigned at construction and never reassigned. See module
     # docstring. Guarded by test_song_never_changes in the test suite.
-    song_track_id: str
+    song_id: str
     difficulty: Difficulty
     session_id: str | None = None
     stage_index: int = 0
@@ -78,18 +78,18 @@ class GameRound:
         """How many stages the player consumed, counted from one."""
         return self.stage_index + 1
 
-    def has_guessed(self, track_id: str) -> bool:
+    def has_guessed(self, song_id: str) -> bool:
         """Whether this track was already submitted in this round."""
-        return any(guess.track_id == track_id for guess in self.guesses)
+        return any(guess.song_id == song_id for guess in self.guesses)
 
     # -- Mutations ----------------------------------------------------------
     #
-    # Note what is absent: there is no method that sets song_track_id. Stage
+    # Note what is absent: there is no method that sets song_id. Stage
     # progression touches stage_index and nothing else.
 
-    def record_guess(self, track_id: str, correct: bool) -> Guess:
+    def record_guess(self, song_id: str, correct: bool) -> Guess:
         """Append a guess at the current stage and return it."""
-        guess = Guess(track_id=track_id, correct=correct, stage_index=self.stage_index)
+        guess = Guess(song_id=song_id, correct=correct, stage_index=self.stage_index)
         self.guesses.append(guess)
         return guess
 

@@ -137,7 +137,7 @@ def is_same_song(guess: Song, answer: Song) -> bool:
     Ordered from most to least certain, returning on the first match.
     """
     # 1. The same catalog entry. Nothing to interpret.
-    if guess.track_id == answer.track_id:
+    if guess.id == answer.id:
         return True
 
     # 2. The same recording under a different catalog entry.

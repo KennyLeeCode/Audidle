@@ -27,7 +27,8 @@ async def search_songs(
     Results carry a track id, which is what the client submits as a guess.
     """
     results = await songs.search(q, limit=limit)
+    provider = songs.provider_name
     return SearchResponse(
         query=q,
-        results=[SongSummary.from_domain(song) for song in results],
+        results=[SongSummary.from_domain(song, provider) for song in results],
     )

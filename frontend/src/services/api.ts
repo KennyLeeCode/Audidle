@@ -116,10 +116,20 @@ export function fetchRound(roundId: string): Promise<RoundState> {
   return request<RoundState>(`/game/${roundId}`)
 }
 
-export function submitGuess(roundId: string, trackId: string): Promise<GuessResponse> {
+/**
+ * Submit a guess as the provider and id the search result carried.
+ *
+ * The client never holds an Audidle song id, so nothing here hints at which
+ * songs are in the catalog. The backend does the resolution.
+ */
+export function submitGuess(
+  roundId: string,
+  provider: string,
+  externalId: string,
+): Promise<GuessResponse> {
   return request<GuessResponse>(`/game/${roundId}/guess`, {
     method: 'POST',
-    body: { track_id: trackId },
+    body: { provider, external_id: externalId },
   })
 }
 

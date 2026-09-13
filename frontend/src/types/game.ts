@@ -66,7 +66,8 @@ export interface RoundResult {
 
 /** A guess the player made this round, kept client side for the attempts list. */
 export interface LocalGuess {
-  track_id: string
+  provider: string
+  external_id: string
   title: string
   artist: string
   artwork_url: string | null

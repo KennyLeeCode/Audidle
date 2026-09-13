@@ -68,6 +68,13 @@ class CachedSongCatalogProvider(SongCatalogProvider):
         self._searches = _TtlCache(max_entries, search_ttl_seconds)
         self._songs = _TtlCache(max_entries, song_ttl_seconds)
 
+    @property
+    def provider_name(self) -> str:
+        return self._inner.provider_name
+
+    async def resolve_external(self, provider: str, external_id: str) -> Song | None:
+        return await self._inner.resolve_external(provider, external_id)
+
     async def search(self, query: str, limit: int = 10) -> list[Song]:
         # Normalized, so "Blinding" and " blinding " share one entry.
         key = f"{query.strip().lower()}:{limit}"
@@ -80,36 +87,36 @@ class CachedSongCatalogProvider(SongCatalogProvider):
         # Individual tracks are cached too, so guessing a song that appeared in
         # search needs no second request to resolve it.
         for song in results:
-            self._songs.set(song.track_id, song)
+            self._songs.set(song.id, song)
         return results
 
-    async def get_song(self, track_id: str) -> Song | None:
-        cached = self._songs.get(track_id)
+    async def get_song(self, song_id: str) -> Song | None:
+        cached = self._songs.get(song_id)
         if cached is not None:
             return cached  # type: ignore[return-value]
 
-        song = await self._inner.get_song(track_id)
+        song = await self._inner.get_song(song_id)
         if song is not None:
-            self._songs.set(track_id, song)
+            self._songs.set(song_id, song)
         return song
 
-    async def get_songs(self, track_ids: list[str]) -> list[Song]:
+    async def get_songs(self, song_ids: list[str]) -> list[Song]:
         found: list[Song] = []
         missing: list[str] = []
 
-        for track_id in track_ids:
-            cached = self._songs.get(track_id)
+        for song_id in song_ids:
+            cached = self._songs.get(song_id)
             if cached is not None:
                 found.append(cached)  # type: ignore[arg-type]
             else:
-                missing.append(track_id)
+                missing.append(song_id)
 
         # Only the cache misses reach the upstream provider, which matters most
         # for song selection, where the same tier is queried on every round.
         if missing:
             fetched = await self._inner.get_songs(missing)
             for song in fetched:
-                self._songs.set(song.track_id, song)
+                self._songs.set(song.id, song)
             found.extend(fetched)
 
         return found
