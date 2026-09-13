@@ -404,6 +404,62 @@ def score_candidate(
     return VideoMatch(video, confidence, method, score, ", ".join(reasons) or "no signals")
 
 
+# How much more watched a lower-authority upload must be before it is preferred
+# over a higher-authority one. An artist's own upload wins by default, but not
+# when an equally valid official upload has a thousand times the audience.
+VIEW_DOMINANCE_FACTOR = 20
+
+
+def authority_rank(match: VideoMatch) -> int:
+    """How authoritative an already-validated candidate is.
+
+    Only ever applied to candidates that have passed identity validation, so
+    this ranks *how good a popularity measurement* an upload is, not whether it
+    is the right recording. Those are separate questions and conflating them is
+    what put a 1.4M view Topic upload in front of a 1.5B view official video.
+    """
+    channel = match.video.channel_title.lower()
+    if channel.endswith(TOPIC_CHANNEL):
+        return 1
+    if match.method == "official_channel":
+        return 2
+    return 0
+
+
+def _best_popularity_representation(valid: list[VideoMatch]) -> VideoMatch:
+    """Pick the best popularity measurement among validated candidates.
+
+    Identity is already settled by the time this runs. Every candidate here is
+    accepted as the right recording, so the only question left is which upload
+    best represents how widely the song has been heard.
+
+    Authority leads, because an artist's own upload is the canonical one. But
+    authority alone would pick a duplicate Topic upload with a rounding error of
+    the audience, so a dramatically more watched alternative wins instead. Both
+    are already known to be the same recording, so preferring the bigger one
+    cannot change *which song* was measured.
+    """
+    ranked = sorted(
+        valid,
+        key=lambda match: (authority_rank(match), match.video.view_count or 0, match.score),
+        reverse=True,
+    )
+    leader = ranked[0]
+
+    most_watched = max(valid, key=lambda match: match.video.view_count or 0)
+    if most_watched is leader:
+        return leader
+
+    leader_views = leader.video.view_count or 0
+    challenger_views = most_watched.video.view_count or 0
+
+    # A clearly bigger audience on an equally valid upload beats seniority.
+    if challenger_views >= max(leader_views, 1) * VIEW_DOMINANCE_FACTOR:
+        return most_watched
+
+    return leader
+
+
 def pick_best_video(
     candidates: list[YouTubeVideo],
     song_title: str,
@@ -442,9 +498,7 @@ def pick_best_video(
         if match.confidence is VideoMatchConfidence.VERIFIED_OFFICIAL
     ]
     if verified:
-        # Most watched official upload. Ties on views fall back to score.
-        verified.sort(key=lambda match: (-(match.video.view_count or 0), -match.score))
-        return verified[0]
+        return _best_popularity_representation(verified)
 
     accepted.sort(key=lambda match: -match.score)
     best = accepted[0]

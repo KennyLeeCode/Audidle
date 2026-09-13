@@ -234,10 +234,18 @@ class YouTubePopularityProvider:
                 "q": query,
                 "type": "video",
                 "maxResults": min(limit, 25),
-                # Excludes Shorts and other non standard formats, which are
-                # never the canonical upload of a song.
+                # No videoEmbeddable filter. An earlier version passed
+                # videoEmbeddable=true to exclude odd formats, which also
+                # excluded embedding-restricted uploads. A great many official
+                # VEVO music videos are embedding restricted, so the filter was
+                # quietly hiding exactly the videos we most want: Lucid Dreams
+                # matched a 1.4M view Topic upload because its 1.5B view
+                # official video never reached the candidate list.
+                #
+                # Shorts and other wrong-length uploads are excluded by the
+                # duration check during scoring instead, which is where that
+                # judgement belongs.
                 "videoDuration": "any",
-                "videoEmbeddable": "true",
             },
             cost=COST_SEARCH,
         )
