@@ -10,6 +10,7 @@ and the repository holds live rounds. Rebuilding them per request would drop
 every in flight round on the floor.
 """
 
+import logging
 from functools import lru_cache
 from typing import Annotated
 
@@ -21,6 +22,11 @@ from app.core.errors import ProviderConfigurationError
 from app.database.database import build_engine, build_session_factory
 from app.providers.base import AudioProvider, PopularityProvider, SongCatalogProvider
 from app.providers.caching import CachedSongCatalogProvider
+from app.providers.database.audidle_catalog import (
+    AudidleAudioProvider,
+    AudidlePopularityProvider,
+    AudidleSongCatalogProvider,
+)
 from app.providers.database.db_audio_provider import DbAudioProvider
 from app.providers.database.db_catalog import (
     CompositeSongCatalogProvider,
@@ -38,6 +44,8 @@ from app.repositories.round_repository import InMemoryRoundRepository, RoundRepo
 from app.services.game_service import GameService
 from app.services.recent_songs import RecentSongsTracker
 from app.services.song_service import SongService
+
+logger = logging.getLogger(__name__)
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -77,6 +85,26 @@ def get_song_catalog_provider() -> SongCatalogProvider:
 
     if settings.song_provider == "mock":
         provider: SongCatalogProvider = MockSongProvider(settings.data_dir / "mock_songs.json")
+    elif settings.song_provider == "audidle":
+        # The real catalog path. Spotify supplies search so any song can be
+        # guessed, the Audidle database supplies identity and metadata, and
+        # guesses are resolved back to Audidle songs server side.
+        catalog = AudidleSongCatalogProvider(get_session_factory())
+        if settings.spotify_configured:
+            provider = CompositeSongCatalogProvider(
+                search_provider=SpotifySongProvider(
+                    client=get_spotify_client(), market=settings.spotify_market
+                ),
+                metadata_provider=catalog,
+            )
+        else:
+            # Without Spotify the game still runs, guessing is just limited to
+            # songs we hold. Proving that is the point of the abstraction.
+            logger.warning(
+                "SONG_PROVIDER=audidle without Spotify credentials, "
+                "search is limited to the local catalog"
+            )
+            provider = catalog
     elif settings.song_provider in ("spotify", "curated"):
         if not settings.spotify_configured:
             # Failing at startup rather than on the first search, so a missing
@@ -120,6 +148,9 @@ def get_popularity_provider() -> PopularityProvider:
     if settings.popularity_provider == "mock":
         return MockPopularityProvider(settings.data_dir / "mock_songs.json")
 
+    if settings.popularity_provider == "audidle":
+        return AudidlePopularityProvider(get_session_factory())
+
     if settings.popularity_provider == "curated":
         return DbPopularityProvider(
             get_session_factory(),
@@ -138,6 +169,9 @@ def get_audio_provider() -> AudioProvider:
 
     if settings.audio_provider == "mock":
         return MockAudioProvider(settings.data_dir / "mock_songs.json", settings.audio_dir)
+
+    if settings.audio_provider == "audidle":
+        return AudidleAudioProvider(get_session_factory(), settings.audio_dir)
 
     if settings.audio_provider == "curated":
         return DbAudioProvider(get_session_factory(), settings.audio_dir)
@@ -200,7 +234,10 @@ def validate_provider_combination() -> None:
     """
     settings = get_settings()
 
-    if settings.song_provider in ("spotify", "curated") and settings.popularity_provider == "mock":
+    if (
+        settings.song_provider in ("spotify", "curated", "audidle")
+        and settings.popularity_provider == "mock"
+    ):
         raise ProviderConfigurationError(
             "SONG_PROVIDER=spotify cannot be used with POPULARITY_PROVIDER=mock. The mock "
             "popularity data indexes mock track ids, which the Spotify catalog cannot "

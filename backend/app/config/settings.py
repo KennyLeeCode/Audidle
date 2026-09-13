@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     # -- Provider selection -------------------------------------------------
     # These decide which concrete implementation dependencies.py wires up.
     # curated = Spotify search with metadata and difficulty from our own database
-    song_provider: Literal["mock", "spotify", "curated"] = "mock"
-    popularity_provider: Literal["mock", "curated"] = "mock"
-    audio_provider: Literal["mock", "curated"] = "mock"
+    song_provider: Literal["mock", "spotify", "curated", "audidle"] = "mock"
+    popularity_provider: Literal["mock", "curated", "audidle"] = "mock"
+    audio_provider: Literal["mock", "curated", "audidle"] = "mock"
 
     # -- Spotify ------------------------------------------------------------
     # Backend only. These must never be exposed through any API response.

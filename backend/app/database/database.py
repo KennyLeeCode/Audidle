@@ -18,6 +18,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+# Importing the model modules registers their tables on Base.metadata, which
+# is what lets create_schema build them.
+from app.database import catalog_models  # noqa: F401
 from app.database.models import Base
 
 
