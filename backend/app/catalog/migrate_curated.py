@@ -53,7 +53,10 @@ class MigrationReport:
 
 
 async def migrate_curated_songs(
-    session: AsyncSession, audio_dir: Path, rename_audio: bool = True
+    session: AsyncSession,
+    audio_dir: Path,
+    rename_audio: bool = True,
+    placeholder: bool = True,
 ) -> MigrationReport:
     """Copy every curated row into the Audidle catalog.
 
@@ -137,6 +140,9 @@ async def migrate_curated_songs(
                 provider_reference=reference,
                 duration_ms=row.duration_ms,
                 playable=playable,
+                # Everything migrated from the curated table is generated test
+                # audio. Real audio is attached separately and is not marked.
+                is_placeholder=placeholder,
             )
             if playable:
                 report.audio += 1

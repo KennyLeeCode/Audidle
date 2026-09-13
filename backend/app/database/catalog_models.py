@@ -22,6 +22,7 @@ connection URL change.
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -239,6 +240,41 @@ class SongPopularityRow(Base):
     )
 
 
+class SongPopularitySignal(Base):
+    """One raw popularity measurement from one source.
+
+    Deliberately append-friendly and never overwritten by the derived score.
+    Raw view counts are the expensive thing to collect, and the scoring formula
+    is the cheap thing to change, so keeping the measurements lets difficulty be
+    recalculated later without re-spending API quota.
+
+    Stored as (source, metric, value) rather than named columns so adding
+    Last.fm play counts or ListenBrainz listeners needs no migration.
+    """
+
+    __tablename__ = "song_popularity_signals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    song_id: Mapped[str] = mapped_column(
+        ForeignKey("songs.id", ondelete="CASCADE"), index=True
+    )
+    # "youtube", "listenbrainz", "manual-estimate"
+    source: Mapped[str] = mapped_column(String(32), index=True)
+    # "view_count", "listen_count", "listener_count", "stream_estimate"
+    metric: Mapped[str] = mapped_column(String(32))
+    value: Mapped[int] = mapped_column(BigInteger)
+    # Which video, recording, or dataset row the number came from.
+    source_reference: Mapped[str | None] = mapped_column(Text, default=None)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (
+        # One current value per source and metric. History would be better but
+        # is not needed yet, and this keeps refreshes idempotent.
+        UniqueConstraint("song_id", "source", "metric", name="uq_song_signal"),
+        Index("ix_signal_lookup", "source", "metric"),
+    )
+
+
 class AudioAsset(Base):
     """A playable audio file for a song.
 
@@ -259,6 +295,10 @@ class AudioAsset(Base):
     provider_reference: Mapped[str] = mapped_column(Text)
     duration_ms: Mapped[int | None] = mapped_column(Integer, default=None)
     playable: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Generated test audio, not the real recording. Tracked explicitly so it is
+    # never counted as real audio in statistics and can be excluded from the
+    # game pool by configuration.
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     validated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), default=None
     )

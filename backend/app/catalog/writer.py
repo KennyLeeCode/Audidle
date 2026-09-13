@@ -325,12 +325,16 @@ async def upsert_audio_asset(
     provider_reference: str,
     duration_ms: int | None = None,
     playable: bool = False,
+    is_placeholder: bool = False,
 ) -> AudioAsset:
     """Attach an audio asset.
 
     `playable` defaults to False. It is set by validation against the actual
     file, never assumed, so a row pointing at missing audio cannot keep a song
     in the game pool.
+
+    `is_placeholder` marks generated test audio. It is tracked separately from
+    playability so statistics never present placeholder tones as real audio.
     """
     existing = (
         await session.execute(
@@ -347,6 +351,7 @@ async def upsert_audio_asset(
     )
     row.duration_ms = duration_ms if duration_ms is not None else row.duration_ms
     row.playable = playable
+    row.is_placeholder = is_placeholder
     if playable:
         row.validated_at = datetime.now(UTC)
 
@@ -419,7 +424,9 @@ async def record_unresolved(
     await session.flush()
 
 
-async def recompute_eligibility(session: AsyncSession, song: CatalogSong) -> SongEligibility:
+async def recompute_eligibility(
+    session: AsyncSession, song: CatalogSong, allow_placeholder_audio: bool = True
+) -> SongEligibility:
     """Recalculate whether a song can be used in a round.
 
     The explicit gate between "we know about this song" and "this song can be
@@ -451,7 +458,15 @@ async def recompute_eligibility(session: AsyncSession, song: CatalogSong) -> Son
     has_identity = bool(identifiers)
     has_difficulty = difficulty is not None
     has_audio = bool(assets)
-    audio_playable = any(asset.playable for asset in assets)
+    # Placeholder audio counts as playable only while developing. Turning the
+    # flag off is what flips the catalog to real audio only, without touching
+    # any other part of the pipeline.
+    usable = [
+        asset
+        for asset in assets
+        if asset.playable and (allow_placeholder_audio or not asset.is_placeholder)
+    ]
+    audio_playable = bool(usable)
     metadata_complete = bool(song.title and song.artist_credit)
 
     record = await session.get(SongEligibility, song.id)

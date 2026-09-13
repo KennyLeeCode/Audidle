@@ -4,6 +4,9 @@
     py -m app.catalog enrich-musicbrainz  attach MusicBrainz identity, ISRCs, tags
     py -m app.catalog enrich-spotify      attach Spotify ids and artwork via ISRC
     py -m app.catalog recompute           recalculate eligibility for every song
+    py -m app.catalog enrich-youtube      match songs to videos (expensive, resumable)
+    py -m app.catalog refresh-youtube     re-read view counts (cheap)
+    py -m app.catalog popularity-report   compare view counts against difficulty
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -111,6 +114,84 @@ async def _enrich_spotify(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _enrich_youtube(session, settings, force: bool = False) -> int:
+    from app.catalog.youtube_enrich import match_songs_to_videos
+    from app.providers.youtube.youtube_provider import YouTubePopularityProvider
+
+    if not settings.youtube_api_key:
+        logger.error("YOUTUBE_API_KEY must be set in .env")
+        return 1
+
+    provider = YouTubePopularityProvider(
+        api_key=settings.youtube_api_key,
+        daily_quota=settings.youtube_daily_quota,
+        quota_reserve=settings.youtube_quota_reserve,
+    )
+    logger.info(
+        "matching songs to YouTube videos. Each search costs 100 quota units of "
+        "%s, so roughly %s songs fit in one day. Safe to interrupt.",
+        settings.youtube_daily_quota,
+        (settings.youtube_daily_quota - settings.youtube_quota_reserve) // 101,
+    )
+    try:
+        report = await match_songs_to_videos(session, provider, progress=_progress)
+    finally:
+        await provider.aclose()
+
+    logger.info("YOUTUBE MATCHING\n")
+    logger.info(f"  considered            {report.considered:>6}")
+    logger.info(f"  already matched       {report.skipped_already_matched:>6}")
+    logger.info(f"  verified official     {report.verified_official:>6}")
+    logger.info(f"  high confidence       {report.high_confidence:>6}")
+    logger.info(f"  unresolved            {report.unresolved:>6}")
+    logger.info(f"  failed                {report.failed:>6}")
+    logger.info(f"  view counts stored    {report.view_counts_stored:>6}")
+    logger.info(f"  quota used            {report.quota_used:>6}")
+    if report.quota_exhausted:
+        logger.warning("Quota budget reached. Rerun tomorrow to continue.")
+    if report.unresolved_reasons:
+        logger.info("unresolved:")
+        for reason in report.unresolved_reasons[:15]:
+            logger.info(f"      {reason[:100]}")
+        if len(report.unresolved_reasons) > 15:
+            logger.info(f"      ... and {len(report.unresolved_reasons) - 15} more")
+    return 0
+
+
+async def _refresh_youtube(session, settings, force: bool = False) -> int:
+    from app.catalog.youtube_enrich import refresh_view_counts
+    from app.providers.youtube.youtube_provider import YouTubePopularityProvider
+
+    if not settings.youtube_api_key:
+        logger.error("YOUTUBE_API_KEY must be set in .env")
+        return 1
+
+    provider = YouTubePopularityProvider(
+        api_key=settings.youtube_api_key,
+        daily_quota=settings.youtube_daily_quota,
+        quota_reserve=settings.youtube_quota_reserve,
+    )
+    try:
+        report = await refresh_view_counts(session, provider)
+    finally:
+        await provider.aclose()
+
+    logger.info(
+        "refreshed %s of %s view counts for %s quota units",
+        report.view_counts_stored,
+        report.considered,
+        report.quota_used,
+    )
+    return 0
+
+
+async def _popularity_report(session, settings, force: bool = False) -> int:
+    from app.catalog.popularity_report import build_popularity_report, render_report
+
+    logger.info(render_report(await build_popularity_report(session)))
+    return 0
+
+
 async def _recompute(session, settings, force: bool = False) -> int:
     from app.catalog.enrich import recompute_all_eligibility
 
@@ -183,6 +264,9 @@ COMMANDS = {
     "enrich-musicbrainz": _enrich_musicbrainz,
     "enrich-spotify": _enrich_spotify,
     "recompute": _recompute,
+    "enrich-youtube": _enrich_youtube,
+    "refresh-youtube": _refresh_youtube,
+    "popularity-report": _popularity_report,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,

@@ -43,8 +43,11 @@ class CatalogStats:
     with_spotify: int = 0
     with_popularity: int = 0
     with_genres: int = 0
-    with_audio: int = 0
+    with_any_audio: int = 0
+    with_placeholder_audio: int = 0
+    with_real_audio: int = 0
     playable: int = 0
+    eligible_with_real_audio: int = 0
     eligible: int = 0
     unresolved: int = 0
     by_difficulty: dict[str, int] = field(default_factory=dict)
@@ -93,8 +96,36 @@ async def catalog_stats(session: AsyncSession) -> CatalogStats:
     stats.with_genres = (
         await session.execute(select(func.count(func.distinct(SongGenre.song_id))))
     ).scalar_one()
-    stats.with_audio = (
+    stats.with_any_audio = (
         await session.execute(select(func.count(func.distinct(AudioAsset.song_id))))
+    ).scalar_one()
+    stats.with_placeholder_audio = (
+        await session.execute(
+            select(func.count(func.distinct(AudioAsset.song_id))).where(
+                AudioAsset.is_placeholder.is_(True)
+            )
+        )
+    ).scalar_one()
+    # Real means an asset that is both validated and not generated. This is the
+    # number that matters for a shippable catalog.
+    stats.with_real_audio = (
+        await session.execute(
+            select(func.count(func.distinct(AudioAsset.song_id))).where(
+                AudioAsset.is_placeholder.is_(False), AudioAsset.playable.is_(True)
+            )
+        )
+    ).scalar_one()
+    stats.eligible_with_real_audio = (
+        await session.execute(
+            select(func.count(func.distinct(SongEligibility.song_id)))
+            .select_from(SongEligibility)
+            .join(AudioAsset, AudioAsset.song_id == SongEligibility.song_id)
+            .where(
+                SongEligibility.eligible.is_(True),
+                AudioAsset.is_placeholder.is_(False),
+                AudioAsset.playable.is_(True),
+            )
+        )
     ).scalar_one()
     stats.playable = (
         await session.execute(
@@ -203,9 +234,13 @@ def render_stats(stats: CatalogStats) -> str:
         f"  Spotify matched       {stats.with_spotify:>7,}",
         f"  With popularity       {stats.with_popularity:>7,}",
         f"  With genre            {stats.with_genres:>7,}",
-        f"  With audio            {stats.with_audio:>7,}",
+        "",
+        f"  With any audio        {stats.with_any_audio:>7,}",
+        f"  Placeholder audio     {stats.with_placeholder_audio:>7,}",
+        f"  Real audio            {stats.with_real_audio:>7,}",
         f"  Playable              {stats.playable:>7,}",
         f"  Game eligible         {stats.eligible:>7,}",
+        f"  Eligible, real audio  {stats.eligible_with_real_audio:>7,}",
     ]
 
     if stats.unresolved:

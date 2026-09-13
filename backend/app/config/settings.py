@@ -55,6 +55,23 @@ class Settings(BaseSettings):
     # One request per second is their documented anonymous limit.
     musicbrainz_rate_limit: float = 1.0
 
+    # -- YouTube ------------------------------------------------------------
+    # Popularity signal only. YouTube audio is never used for gameplay.
+    # Backend only, never sent to the browser.
+    youtube_api_key: str = ""
+    # search.list costs 100 quota units and videos.list costs 1, against a
+    # 10,000 unit daily default. Matching is therefore expensive and one time,
+    # and refreshing view counts is nearly free.
+    youtube_daily_quota: int = 10_000
+    # Stop before exhausting the day's quota, so a run ends cleanly and
+    # resumably rather than failing mid song.
+    youtube_quota_reserve: int = 200
+
+    # -- Audio policy -------------------------------------------------------
+    # Whether generated placeholder audio may keep a song in the game pool.
+    # True while developing, false once real audio exists.
+    allow_placeholder_audio: bool = True
+
     # -- Catalog caching ----------------------------------------------------
     # On by default. Autocomplete fires a request per keystroke burst, and
     # Spotify's rate limits are shared across the whole app.
