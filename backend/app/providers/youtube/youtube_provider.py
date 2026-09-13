@@ -165,6 +165,19 @@ class YouTubePopularityProvider:
                 )
 
             if response.status_code == 429:
+                # Google reports the *daily* search quota being gone as a 429
+                # with reason rateLimitExceeded, not as the 403 the docs
+                # suggest. Retrying that can never succeed, so it has to be
+                # told apart from genuine short term throttling by reading the
+                # message. Getting this wrong meant every retry burned budget
+                # on a request that was already doomed.
+                if "quota" in response.text.lower():
+                    self.quota_used = self._budget
+                    raise QuotaExhaustedError(
+                        "YouTube daily search quota is exhausted. It resets at "
+                        "midnight Pacific. Matching resumes where it stopped."
+                    )
+
                 if attempt == MAX_RETRIES - 1:
                     raise CatalogRateLimitedError(
                         "YouTube is rate limiting requests, try again shortly"

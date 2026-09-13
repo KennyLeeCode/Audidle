@@ -115,8 +115,13 @@ async def match_songs_to_videos(
     provider: YouTubePopularityProvider,
     limit: int | None = None,
     progress=None,
+    only_title: str | None = None,
 ) -> YouTubeMatchReport:
     """Find and store a YouTube video for each unmatched song.
+
+    `only_title` narrows the run to songs whose title contains that text. At 100
+    quota units per search, walking the whole catalog to reach one song spends
+    the day's budget on songs that were already known to fail.
 
     The expensive pass. Every song costs 100 quota units for the search plus one
     shared unit for hydrating the shortlist, so the default daily quota covers
@@ -125,6 +130,9 @@ async def match_songs_to_videos(
     report = YouTubeMatchReport()
 
     songs = (await session.execute(select(CatalogSong))).scalars().all()
+    if only_title:
+        needle = only_title.lower()
+        songs = [song for song in songs if needle in song.title.lower()]
     if limit:
         songs = songs[:limit]
 

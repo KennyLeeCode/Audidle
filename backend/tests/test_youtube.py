@@ -600,3 +600,54 @@ def test_no_signals_scores_nothing_rather_than_zero():
     from app.catalog.multisignal_report import model_rescue_30
 
     assert model_rescue_30(_rescue_row(None, None)) is None
+
+
+@pytest.mark.anyio
+async def test_daily_quota_exhaustion_arrives_as_a_429_not_a_403():
+    """Found against the live API.
+
+    Google reports the daily search quota being gone as:
+
+        429  reason=rateLimitExceeded
+        "Quota exceeded for quota metric 'Search Queries' and limit
+         'Search Queries per day'"
+
+    not as the documented 403. Retrying that can never succeed, so it must be
+    told apart from genuine short term throttling or every retry burns budget
+    on a doomed request.
+    """
+    body = (
+        '{"error":{"errors":[{"reason":"rateLimitExceeded"}],'
+        '"message":"Quota exceeded for quota metric \'Search Queries\'"}}'
+    )
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(429, text=body)
+
+    provider = YouTubePopularityProvider("k", daily_quota=10_000)
+    provider._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(QuotaExhaustedError):
+        await provider.search_song_video(SONG_TITLE, SONG_ARTIST)
+
+    # Raised on the first response rather than retried three times.
+    assert len(calls) == 1
+
+
+@pytest.mark.anyio
+async def test_a_429_without_quota_wording_is_still_retried():
+    """Genuine short term throttling must stay retryable."""
+    responses = [
+        httpx.Response(429, text='{"error":{"message":"Too many requests"}}'),
+        httpx.Response(200, json={"items": []}),
+    ]
+
+    provider = YouTubePopularityProvider("k", daily_quota=10_000)
+    provider._http = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: responses.pop(0))
+    )
+
+    assert await provider.search_song_video(SONG_TITLE, SONG_ARTIST) == []
+    assert not responses

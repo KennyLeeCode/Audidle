@@ -119,7 +119,8 @@ async def _enrich_spotify(session, settings, force: bool = False) -> int:
     return 0
 
 
-async def _enrich_youtube(session, settings, force: bool = False) -> int:
+async def _enrich_youtube(session, settings, force: bool = False, song: str | None = None) -> int:
+    settings_song = song
     from app.catalog.youtube_enrich import match_songs_to_videos
     from app.providers.youtube.youtube_provider import YouTubePopularityProvider
 
@@ -139,7 +140,9 @@ async def _enrich_youtube(session, settings, force: bool = False) -> int:
         (settings.youtube_daily_quota - settings.youtube_quota_reserve) // 101,
     )
     try:
-        report = await match_songs_to_videos(session, provider, progress=_progress)
+        report = await match_songs_to_videos(
+            session, provider, progress=_progress, only_title=settings_song
+        )
     finally:
         await provider.aclose()
 
@@ -346,6 +349,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.catalog", description=__doc__)
     parser.add_argument("command", choices=sorted(COMMANDS))
     parser.add_argument(
+        "--song",
+        default=None,
+        help="limit the run to songs whose title contains this text",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="re-run enrichment on songs that already have the provider's id, "
@@ -353,7 +361,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    return asyncio.run(_with_session(COMMANDS[args.command], args.force))
+    handler = COMMANDS[args.command]
+    if handler is _enrich_youtube:
+        return asyncio.run(_with_session(handler, args.force, args.song))
+    return asyncio.run(_with_session(handler, args.force))
 
 
 if __name__ == "__main__":
