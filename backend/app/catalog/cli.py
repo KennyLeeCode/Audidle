@@ -9,6 +9,7 @@
     py -m app.catalog enrich-listenbrainz collect listen and unique listener counts
     py -m app.catalog popularity-report   YouTube views against current difficulty
     py -m app.catalog signal-report       YouTube and ListenBrainz side by side
+    py -m app.catalog match-report --song "X"  explain one song's candidates, read only
     py -m app.catalog audit-youtube       re-score stored matches, no quota cost
     py -m app.catalog audit-youtube --force   also invalidate the ones that fail
     py -m app.catalog model-comparison    candidate scoring models, applied to nothing
@@ -318,6 +319,57 @@ async def _model_comparison(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _match_report(session, settings, force: bool = False, song: str | None = None) -> int:
+    """Explain YouTube candidate selection for one song. Changes nothing."""
+    from sqlalchemy import select
+
+    from app.catalog.match_report import (
+        build_match_report,
+        fetch_candidates,
+        render_match_report,
+    )
+    from app.database.catalog_models import CatalogSong
+    from app.providers.youtube.youtube_provider import YouTubePopularityProvider
+
+    if not song:
+        logger.error('match-report needs --song "Song Title"')
+        return 1
+    if not settings.youtube_api_key:
+        logger.error("YOUTUBE_API_KEY must be set in .env")
+        return 1
+
+    found = (
+        await session.execute(select(CatalogSong).where(CatalogSong.title.like(f"%{song}%")))
+    ).scalars().all()
+
+    if not found:
+        logger.error("no catalog song matches %r", song)
+        return 1
+    if len(found) > 1:
+        logger.warning("%s songs match %r, reporting on the first:", len(found), song)
+        for candidate in found:
+            logger.warning("    %s - %s", candidate.title, candidate.artist_credit)
+
+    target = found[0]
+    provider = YouTubePopularityProvider(
+        api_key=settings.youtube_api_key,
+        daily_quota=settings.youtube_daily_quota,
+        quota_reserve=settings.youtube_quota_reserve,
+    )
+    try:
+        candidates = await fetch_candidates(provider, target.title, target.artist_credit)
+    finally:
+        await provider.aclose()
+
+    report = build_match_report(
+        target.title, target.artist_credit, target.duration_ms, candidates
+    )
+    logger.info(render_match_report(report))
+    logger.info("  quota used by this report: %s units", provider.quota_used)
+    # Nothing was written. This command is read only by design.
+    return 0
+
+
 async def _audit_youtube(session, settings, force: bool = False) -> int:
     """Re-score stored YouTube matches. --force invalidates the failures."""
     from app.catalog.youtube_audit import audit_youtube_matches, render_audit
@@ -342,6 +394,7 @@ COMMANDS = {
     "popularity-report": _popularity_report,
     "signal-report": _signal_report,
     "audit-youtube": _audit_youtube,
+    "match-report": _match_report,
     "model-comparison": _model_comparison,
     "stats": _stats,
     "validate": _validate,
@@ -366,7 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     handler = COMMANDS[args.command]
-    if handler is _enrich_youtube:
+    if handler in (_enrich_youtube, _match_report):
         return asyncio.run(_with_session(handler, args.force, args.song))
     return asyncio.run(_with_session(handler, args.force))
 

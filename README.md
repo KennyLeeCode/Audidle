@@ -70,6 +70,20 @@ py -m app.catalog enrich-musicbrainz
 py -m app.catalog stats
 ```
 
+There are a few other catalog commands that are useful when something looks
+wrong:
+
+```bash
+py -m app.catalog validate                       # what is missing and why
+py -m app.catalog match-report --song "Song"     # why a song matched a YouTube video
+py -m app.catalog audit-youtube                  # re-check every stored match
+```
+
+`match-report` is read only. It runs one YouTube search and prints every
+candidate it found, whether each one was accepted or rejected and why, and which
+one would be picked. Handy when a song ends up with a view count that looks
+wrong. It does not change anything.
+
 Then start the server:
 
 ```bash
