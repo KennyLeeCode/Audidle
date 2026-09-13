@@ -33,9 +33,10 @@ class Settings(BaseSettings):
 
     # -- Provider selection -------------------------------------------------
     # These decide which concrete implementation dependencies.py wires up.
-    song_provider: Literal["mock", "spotify"] = "mock"
-    popularity_provider: Literal["mock", "static"] = "mock"
-    audio_provider: Literal["mock"] = "mock"
+    # curated = Spotify search with metadata and difficulty from our own database
+    song_provider: Literal["mock", "spotify", "curated"] = "mock"
+    popularity_provider: Literal["mock", "curated"] = "mock"
+    audio_provider: Literal["mock", "curated"] = "mock"
 
     # -- Spotify ------------------------------------------------------------
     # Backend only. These must never be exposed through any API response.
@@ -66,8 +67,18 @@ class Settings(BaseSettings):
     # How many candidate songs to try before giving up on finding a playable
     # one. Prevents handing the player a round with broken audio.
     max_song_selection_attempts: int = 10
+    # Only offer songs that have an audio file. Without this the game draws
+    # songs it cannot play and leans on the retry loop to recover, which fails
+    # once most of the catalog lacks audio.
+    require_audio_for_selection: bool = True
     # Seconds the reveal stays up before Auto Next fires, when it is enabled.
     auto_next_delay_seconds: float = 8.0
+
+    # -- Database -----------------------------------------------------------
+    # SQLite by default, so local development needs no setup. The models use no
+    # SQLite specific types, so Postgres is a URL change plus asyncpg.
+    database_url: str = "sqlite+aiosqlite:///./audidle.db"
+    database_echo: bool = False
 
     # -- Paths --------------------------------------------------------------
     @property

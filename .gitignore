@@ -35,3 +35,6 @@ Thumbs.db
 
 # Vite build output
 frontend/dist/
+
+# Ingested catalog database (rebuild with scripts/ingest_catalog.py)
+backend/audidle.db

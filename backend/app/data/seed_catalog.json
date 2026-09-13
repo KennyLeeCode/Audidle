@@ -1,0 +1,856 @@
+{
+  "meta": {
+    "description": "Seed catalog for Audidle difficulty tiers. Stream figures are ESTIMATES used to bucket songs into tiers, not exact counts. Spotify does not expose stream counts through its Web API, so this data is held locally. Replace with real chart data when available, see scripts/ingest_catalog.py.",
+    "source": "manual-estimate",
+    "streams_as_of": "2025-01",
+    "song_count": 89
+  },
+  "songs": [
+    {
+      "title": "Blinding Lights",
+      "artist": "The Weeknd",
+      "stream_estimate": 4700000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "synthpop"
+      ]
+    },
+    {
+      "title": "Shape of You",
+      "artist": "Ed Sheeran",
+      "stream_estimate": 4200000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Someone You Loved",
+      "artist": "Lewis Capaldi",
+      "stream_estimate": 3600000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Sunflower",
+      "artist": "Post Malone",
+      "stream_estimate": 3500000000,
+      "confidence": "high",
+      "genres": [
+        "hip-hop",
+        "pop"
+      ]
+    },
+    {
+      "title": "As It Was",
+      "artist": "Harry Styles",
+      "stream_estimate": 3500000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Starboy",
+      "artist": "The Weeknd",
+      "stream_estimate": 3300000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "r&b"
+      ]
+    },
+    {
+      "title": "One Dance",
+      "artist": "Drake",
+      "stream_estimate": 3200000000,
+      "confidence": "high",
+      "genres": [
+        "hip-hop",
+        "dancehall"
+      ]
+    },
+    {
+      "title": "Perfect",
+      "artist": "Ed Sheeran",
+      "stream_estimate": 3200000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Sweater Weather",
+      "artist": "The Neighbourhood",
+      "stream_estimate": 3100000000,
+      "confidence": "high",
+      "genres": [
+        "indie",
+        "alternative"
+      ]
+    },
+    {
+      "title": "STAY",
+      "artist": "The Kid LAROI",
+      "stream_estimate": 3000000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Heat Waves",
+      "artist": "Glass Animals",
+      "stream_estimate": 3000000000,
+      "confidence": "high",
+      "genres": [
+        "indie",
+        "psychedelic"
+      ]
+    },
+    {
+      "title": "Closer",
+      "artist": "The Chainsmokers",
+      "stream_estimate": 3000000000,
+      "confidence": "high",
+      "genres": [
+        "edm",
+        "pop"
+      ]
+    },
+    {
+      "title": "Dance Monkey",
+      "artist": "Tones and I",
+      "stream_estimate": 2900000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "rockstar",
+      "artist": "Post Malone",
+      "stream_estimate": 2800000000,
+      "confidence": "high",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Believer",
+      "artist": "Imagine Dragons",
+      "stream_estimate": 2800000000,
+      "confidence": "high",
+      "genres": [
+        "rock",
+        "pop"
+      ]
+    },
+    {
+      "title": "Circles",
+      "artist": "Post Malone",
+      "stream_estimate": 2700000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Senorita",
+      "artist": "Shawn Mendes",
+      "stream_estimate": 2700000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "bad guy",
+      "artist": "Billie Eilish",
+      "stream_estimate": 2600000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "electropop"
+      ]
+    },
+    {
+      "title": "Counting Stars",
+      "artist": "OneRepublic",
+      "stream_estimate": 2600000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "rock"
+      ]
+    },
+    {
+      "title": "Say You Wont Let Go",
+      "artist": "James Arthur",
+      "stream_estimate": 2600000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Lucid Dreams",
+      "artist": "Juice WRLD",
+      "stream_estimate": 2500000000,
+      "confidence": "high",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Watermelon Sugar",
+      "artist": "Harry Styles",
+      "stream_estimate": 2500000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Gods Plan",
+      "artist": "Drake",
+      "stream_estimate": 2500000000,
+      "confidence": "high",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Bohemian Rhapsody",
+      "artist": "Queen",
+      "stream_estimate": 2500000000,
+      "confidence": "high",
+      "genres": [
+        "rock"
+      ]
+    },
+    {
+      "title": "Mr. Brightside",
+      "artist": "The Killers",
+      "stream_estimate": 2400000000,
+      "confidence": "high",
+      "genres": [
+        "rock",
+        "indie"
+      ]
+    },
+    {
+      "title": "Thinking Out Loud",
+      "artist": "Ed Sheeran",
+      "stream_estimate": 2400000000,
+      "confidence": "high",
+      "genres": [
+        "pop"
+      ]
+    },
+    {
+      "title": "Levitating",
+      "artist": "Dua Lipa",
+      "stream_estimate": 2400000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "disco"
+      ]
+    },
+    {
+      "title": "Dont Start Now",
+      "artist": "Dua Lipa",
+      "stream_estimate": 2300000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "disco"
+      ]
+    },
+    {
+      "title": "Uptown Funk",
+      "artist": "Mark Ronson",
+      "stream_estimate": 2200000000,
+      "confidence": "high",
+      "genres": [
+        "funk",
+        "pop"
+      ]
+    },
+    {
+      "title": "Havana",
+      "artist": "Camila Cabello",
+      "stream_estimate": 2200000000,
+      "confidence": "high",
+      "genres": [
+        "pop",
+        "latin"
+      ]
+    },
+    {
+      "title": "The Less I Know The Better",
+      "artist": "Tame Impala",
+      "stream_estimate": 1700000000,
+      "confidence": "high",
+      "genres": [
+        "psychedelic",
+        "indie"
+      ]
+    },
+    {
+      "title": "Take On Me",
+      "artist": "a-ha",
+      "stream_estimate": 1600000000,
+      "confidence": "high",
+      "genres": [
+        "synthpop",
+        "80s"
+      ]
+    },
+    {
+      "title": "Redbone",
+      "artist": "Childish Gambino",
+      "stream_estimate": 1500000000,
+      "confidence": "high",
+      "genres": [
+        "r&b",
+        "funk"
+      ]
+    },
+    {
+      "title": "Feel It Still",
+      "artist": "Portugal. The Man",
+      "stream_estimate": 1500000000,
+      "confidence": "high",
+      "genres": [
+        "indie",
+        "pop"
+      ]
+    },
+    {
+      "title": "Pumped Up Kicks",
+      "artist": "Foster The People",
+      "stream_estimate": 1500000000,
+      "confidence": "high",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Yellow",
+      "artist": "Coldplay",
+      "stream_estimate": 1400000000,
+      "confidence": "high",
+      "genres": [
+        "rock",
+        "alternative"
+      ]
+    },
+    {
+      "title": "Electric Love",
+      "artist": "BORNS",
+      "stream_estimate": 1300000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "pop"
+      ]
+    },
+    {
+      "title": "Use Somebody",
+      "artist": "Kings of Leon",
+      "stream_estimate": 1000000000,
+      "confidence": "medium",
+      "genres": [
+        "rock"
+      ]
+    },
+    {
+      "title": "Sex on Fire",
+      "artist": "Kings of Leon",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "rock"
+      ]
+    },
+    {
+      "title": "Runaway",
+      "artist": "Kanye West",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Nights",
+      "artist": "Frank Ocean",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "r&b",
+        "alternative"
+      ]
+    },
+    {
+      "title": "Pink + White",
+      "artist": "Frank Ocean",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "r&b"
+      ]
+    },
+    {
+      "title": "Space Song",
+      "artist": "Beach House",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "dream-pop",
+        "indie"
+      ]
+    },
+    {
+      "title": "Everywhere",
+      "artist": "Fleetwood Mac",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "rock",
+        "80s"
+      ]
+    },
+    {
+      "title": "Electric Feel",
+      "artist": "MGMT",
+      "stream_estimate": 900000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "psychedelic"
+      ]
+    },
+    {
+      "title": "Self Control",
+      "artist": "Frank Ocean",
+      "stream_estimate": 800000000,
+      "confidence": "medium",
+      "genres": [
+        "r&b"
+      ]
+    },
+    {
+      "title": "Kids",
+      "artist": "MGMT",
+      "stream_estimate": 800000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "electronic"
+      ]
+    },
+    {
+      "title": "Tongue Tied",
+      "artist": "Grouplove",
+      "stream_estimate": 800000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Cigarette Daydreams",
+      "artist": "Cage The Elephant",
+      "stream_estimate": 800000000,
+      "confidence": "medium",
+      "genres": [
+        "rock",
+        "indie"
+      ]
+    },
+    {
+      "title": "Vienna",
+      "artist": "Billy Joel",
+      "stream_estimate": 800000000,
+      "confidence": "medium",
+      "genres": [
+        "rock",
+        "piano"
+      ]
+    },
+    {
+      "title": "My Kind of Woman",
+      "artist": "Mac DeMarco",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Ivy",
+      "artist": "Frank Ocean",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "r&b"
+      ]
+    },
+    {
+      "title": "Let It Happen",
+      "artist": "Tame Impala",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "psychedelic"
+      ]
+    },
+    {
+      "title": "Somebody Told Me",
+      "artist": "The Killers",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "rock",
+        "indie"
+      ]
+    },
+    {
+      "title": "Bags",
+      "artist": "Clairo",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "bedroom-pop"
+      ]
+    },
+    {
+      "title": "Flashing Lights",
+      "artist": "Kanye West",
+      "stream_estimate": 700000000,
+      "confidence": "medium",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Chamber of Reflection",
+      "artist": "Mac DeMarco",
+      "stream_estimate": 650000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Fade Into You",
+      "artist": "Mazzy Star",
+      "stream_estimate": 600000000,
+      "confidence": "medium",
+      "genres": [
+        "dream-pop"
+      ]
+    },
+    {
+      "title": "Borderline",
+      "artist": "Tame Impala",
+      "stream_estimate": 600000000,
+      "confidence": "medium",
+      "genres": [
+        "psychedelic"
+      ]
+    },
+    {
+      "title": "3005",
+      "artist": "Childish Gambino",
+      "stream_estimate": 600000000,
+      "confidence": "medium",
+      "genres": [
+        "hip-hop"
+      ]
+    },
+    {
+      "title": "Cherry Wine",
+      "artist": "Hozier",
+      "stream_estimate": 550000000,
+      "confidence": "medium",
+      "genres": [
+        "folk",
+        "indie"
+      ]
+    },
+    {
+      "title": "Washing Machine Heart",
+      "artist": "Mitski",
+      "stream_estimate": 500000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Lisztomania",
+      "artist": "Phoenix",
+      "stream_estimate": 400000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "french"
+      ]
+    },
+    {
+      "title": "1901",
+      "artist": "Phoenix",
+      "stream_estimate": 400000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "french"
+      ]
+    },
+    {
+      "title": "Sofia",
+      "artist": "Clairo",
+      "stream_estimate": 400000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "bedroom-pop"
+      ]
+    },
+    {
+      "title": "Trouble",
+      "artist": "Cage The Elephant",
+      "stream_estimate": 400000000,
+      "confidence": "medium",
+      "genres": [
+        "rock"
+      ]
+    },
+    {
+      "title": "Freaking Out The Neighborhood",
+      "artist": "Mac DeMarco",
+      "stream_estimate": 300000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Nobody",
+      "artist": "Mitski",
+      "stream_estimate": 300000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Alaska",
+      "artist": "Maggie Rogers",
+      "stream_estimate": 300000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "pop"
+      ]
+    },
+    {
+      "title": "Motion Sickness",
+      "artist": "Phoebe Bridgers",
+      "stream_estimate": 250000000,
+      "confidence": "medium",
+      "genres": [
+        "indie",
+        "folk"
+      ]
+    },
+    {
+      "title": "Into Dust",
+      "artist": "Mazzy Star",
+      "stream_estimate": 200000000,
+      "confidence": "medium",
+      "genres": [
+        "dream-pop"
+      ]
+    },
+    {
+      "title": "Shrike",
+      "artist": "Hozier",
+      "stream_estimate": 200000000,
+      "confidence": "medium",
+      "genres": [
+        "folk"
+      ]
+    },
+    {
+      "title": "Kyoto",
+      "artist": "Phoebe Bridgers",
+      "stream_estimate": 200000000,
+      "confidence": "medium",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "In a Week",
+      "artist": "Hozier",
+      "stream_estimate": 150000000,
+      "confidence": "low",
+      "genres": [
+        "folk"
+      ]
+    },
+    {
+      "title": "Light On",
+      "artist": "Maggie Rogers",
+      "stream_estimate": 150000000,
+      "confidence": "medium",
+      "genres": [
+        "pop",
+        "indie"
+      ]
+    },
+    {
+      "title": "Two Slow Dancers",
+      "artist": "Mitski",
+      "stream_estimate": 150000000,
+      "confidence": "low",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Andromeda",
+      "artist": "Weyes Blood",
+      "stream_estimate": 110000000,
+      "confidence": "low",
+      "genres": [
+        "indie",
+        "dream-pop"
+      ]
+    },
+    {
+      "title": "Talk",
+      "artist": "Hozier",
+      "stream_estimate": 100000000,
+      "confidence": "low",
+      "genres": [
+        "folk",
+        "rock"
+      ]
+    },
+    {
+      "title": "Pink in the Night",
+      "artist": "Mitski",
+      "stream_estimate": 95000000,
+      "confidence": "low",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Moon River",
+      "artist": "Frank Ocean",
+      "stream_estimate": 90000000,
+      "confidence": "low",
+      "genres": [
+        "r&b",
+        "cover"
+      ]
+    },
+    {
+      "title": "Francis Forever",
+      "artist": "Mitski",
+      "stream_estimate": 88000000,
+      "confidence": "low",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Movies",
+      "artist": "Weyes Blood",
+      "stream_estimate": 80000000,
+      "confidence": "low",
+      "genres": [
+        "indie",
+        "dream-pop"
+      ]
+    },
+    {
+      "title": "A Burning Hill",
+      "artist": "Mitski",
+      "stream_estimate": 70000000,
+      "confidence": "low",
+      "genres": [
+        "indie"
+      ]
+    },
+    {
+      "title": "Punisher",
+      "artist": "Phoebe Bridgers",
+      "stream_estimate": 60000000,
+      "confidence": "low",
+      "genres": [
+        "indie",
+        "folk"
+      ]
+    },
+    {
+      "title": "Halloween",
+      "artist": "Phoebe Bridgers",
+      "stream_estimate": 50000000,
+      "confidence": "low",
+      "genres": [
+        "indie",
+        "folk"
+      ]
+    },
+    {
+      "title": "Seventeen",
+      "artist": "Sharon Van Etten",
+      "stream_estimate": 45000000,
+      "confidence": "low",
+      "genres": [
+        "indie",
+        "rock"
+      ]
+    },
+    {
+      "title": "Jasmine",
+      "artist": "Jai Paul",
+      "stream_estimate": 35000000,
+      "confidence": "low",
+      "genres": [
+        "electronic",
+        "r&b"
+      ]
+    },
+    {
+      "title": "BTSTU",
+      "artist": "Jai Paul",
+      "stream_estimate": 24000000,
+      "confidence": "low",
+      "genres": [
+        "electronic"
+      ]
+    },
+    {
+      "title": "Str8 Outta Mumbai",
+      "artist": "Jai Paul",
+      "stream_estimate": 20000000,
+      "confidence": "low",
+      "genres": [
+        "electronic"
+      ]
+    }
+  ]
+}

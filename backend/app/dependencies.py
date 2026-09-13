@@ -14,11 +14,19 @@ from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config.settings import Settings, get_settings
 from app.core.errors import ProviderConfigurationError
+from app.database.database import build_engine, build_session_factory
 from app.providers.base import AudioProvider, PopularityProvider, SongCatalogProvider
 from app.providers.caching import CachedSongCatalogProvider
+from app.providers.database.db_audio_provider import DbAudioProvider
+from app.providers.database.db_catalog import (
+    CompositeSongCatalogProvider,
+    DbPopularityProvider,
+    DbSongCatalogProvider,
+)
 from app.providers.mock import (
     MockAudioProvider,
     MockPopularityProvider,
@@ -35,6 +43,17 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 # -- Providers --------------------------------------------------------------
+
+
+@lru_cache
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Database session factory.
+
+    Cached because the engine owns a connection pool. One per process.
+    """
+    settings = get_settings()
+    engine = build_engine(settings.database_url, echo=settings.database_echo)
+    return build_session_factory(engine)
 
 
 @lru_cache
@@ -58,17 +77,27 @@ def get_song_catalog_provider() -> SongCatalogProvider:
 
     if settings.song_provider == "mock":
         provider: SongCatalogProvider = MockSongProvider(settings.data_dir / "mock_songs.json")
-    elif settings.song_provider == "spotify":
+    elif settings.song_provider in ("spotify", "curated"):
         if not settings.spotify_configured:
             # Failing at startup rather than on the first search, so a missing
             # credential is obvious immediately instead of mid game.
             raise ProviderConfigurationError(
-                "SONG_PROVIDER=spotify requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET"
+                f"SONG_PROVIDER={settings.song_provider} requires SPOTIFY_CLIENT_ID "
+                f"and SPOTIFY_CLIENT_SECRET"
             )
-        provider = SpotifySongProvider(
+        spotify = SpotifySongProvider(
             client=get_spotify_client(),
             market=settings.spotify_market,
         )
+        if settings.song_provider == "spotify":
+            provider = spotify
+        else:
+            # Search the whole Spotify catalog so any song can be guessed, but
+            # resolve metadata locally so the hot path survives an outage.
+            provider = CompositeSongCatalogProvider(
+                search_provider=spotify,
+                metadata_provider=DbSongCatalogProvider(get_session_factory()),
+            )
     else:
         raise ProviderConfigurationError(f"unknown SONG_PROVIDER '{settings.song_provider}'")
 
@@ -91,10 +120,10 @@ def get_popularity_provider() -> PopularityProvider:
     if settings.popularity_provider == "mock":
         return MockPopularityProvider(settings.data_dir / "mock_songs.json")
 
-    if settings.popularity_provider == "static":
-        raise ProviderConfigurationError(
-            "POPULARITY_PROVIDER=static needs a curated stream count dataset, "
-            "which is not present yet. Use POPULARITY_PROVIDER=mock"
+    if settings.popularity_provider == "curated":
+        return DbPopularityProvider(
+            get_session_factory(),
+            require_audio=settings.require_audio_for_selection,
         )
 
     raise ProviderConfigurationError(
@@ -109,6 +138,9 @@ def get_audio_provider() -> AudioProvider:
 
     if settings.audio_provider == "mock":
         return MockAudioProvider(settings.data_dir / "mock_songs.json", settings.audio_dir)
+
+    if settings.audio_provider == "curated":
+        return DbAudioProvider(get_session_factory(), settings.audio_dir)
 
     raise ProviderConfigurationError(f"unknown AUDIO_PROVIDER '{settings.audio_provider}'")
 
@@ -168,12 +200,18 @@ def validate_provider_combination() -> None:
     """
     settings = get_settings()
 
-    if settings.song_provider == "spotify" and settings.popularity_provider == "mock":
+    if settings.song_provider in ("spotify", "curated") and settings.popularity_provider == "mock":
         raise ProviderConfigurationError(
             "SONG_PROVIDER=spotify cannot be used with POPULARITY_PROVIDER=mock. The mock "
             "popularity data indexes mock track ids, which the Spotify catalog cannot "
             "resolve, so no round could ever be created. Either run both as mock, or "
             "supply a popularity dataset built over real Spotify track ids."
+        )
+
+    if settings.popularity_provider == "curated" and settings.song_provider == "mock":
+        raise ProviderConfigurationError(
+            "POPULARITY_PROVIDER=curated indexes real Spotify track ids, which the mock "
+            "catalog cannot resolve. Use SONG_PROVIDER=curated."
         )
 
 

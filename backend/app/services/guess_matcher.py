@@ -78,6 +78,26 @@ _APOSTROPHES = re.compile(r"['‘’ʼ]")
 _PUNCTUATION = re.compile(r"[^\w\s]")
 _WHITESPACE = re.compile(r"\s+")
 
+# Letters that carry no combining mark to decompose, so NFKD leaves them intact
+# and the punctuation pass would otherwise turn them into spaces.
+_UNDECOMPOSABLE = str.maketrans(
+    {"ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE", "ð": "d", "Ð": "D",
+     "þ": "th", "Þ": "TH", "ł": "l", "Ł": "L", "ß": "ss", "đ": "d", "Đ": "D"}
+)
+
+
+def _fold_accents(text: str) -> str:
+    """Reduce accented letters to their base form.
+
+    Decomposing with NFKD splits "ñ" into "n" plus a combining tilde, and that
+    mark must then be *deleted* rather than replaced with a space. Getting this
+    wrong turned "Señorita" into "sen orita", which meant an accented title
+    could never match its unaccented spelling. Catalogs mix the two freely, so
+    this is a correctness issue rather than tidiness.
+    """
+    decomposed = unicodedata.normalize("NFKD", text.translate(_UNDECOMPOSABLE))
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
 
 def normalize_title(title: str) -> str:
     """Reduce a title to the song itself, dropping release specific wording.
@@ -85,7 +105,7 @@ def normalize_title(title: str) -> str:
     "Bohemian Rhapsody - Remastered 2011" and "Bohemian Rhapsody" both become
     "bohemian rhapsody". "Blinding Lights (Single Version)" does too.
     """
-    text = unicodedata.normalize("NFKD", title)
+    text = _fold_accents(title)
     text = _BRACKETED_QUALIFIERS.sub("", text)
     text = _RELEASE_QUALIFIERS.sub("", text)
     text = _FEATURES.sub("", text)
@@ -102,7 +122,7 @@ def normalize_artist(artist: str) -> str:
     to separate two different songs sharing a title, which is all this needs to
     do.
     """
-    text = unicodedata.normalize("NFKD", artist)
+    text = _fold_accents(artist)
     text = _FEATURES.sub("", text)
     # Split on any of the separators used to join collaborators.
     primary = re.split(r"\s*[,&;/]\s*|\s+x\s+", text)[0]

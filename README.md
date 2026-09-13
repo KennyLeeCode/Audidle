@@ -30,7 +30,8 @@ the back, with the game rules enforced server side.
 | REST API | Done |
 | React frontend | Done |
 | Spotify catalog integration | Done, search and metadata |
-| Curated stream count dataset | Not started |
+| Curated catalog and difficulty tiers | Done, 89 songs |
+| Audio for real songs | **Open. Spotify cannot supply it, see below** |
 
 ## Running the backend
 
@@ -116,6 +117,48 @@ holds the tier thresholds. Both are served to the client via `/api/config`, so
 retuning the game is a one file backend change with no frontend deploy. Stage
 count is always derived from the list, never hardcoded.
 
+## The curated catalog
+
+Difficulty needs stream counts, and Spotify does not provide them, so the
+catalog is held locally in SQLite. Two scripts build it:
+
+```bash
+py scripts/ingest_catalog.py     # resolve seed songs against Spotify, write rows
+py scripts/attach_audio.py --status
+```
+
+`ingest_catalog.py` takes `app/data/seed_catalog.json`, which is a hand written
+list of songs with estimated stream counts, and resolves each one against
+Spotify search to get a real track id, ISRC, artwork, album, and release year.
+It prefers the original release over remasters and sped up edits, which search
+often ranks higher. Currently 89 of 89 resolve.
+
+**The stream figures are estimates, not measurements.** They exist to bucket
+songs into tiers, and each carries a `confidence` field reflecting how sure the
+order of magnitude is. To use real data, replace the seed file with figures from
+a chart source, keeping the same shape, and rerun. Nothing else changes.
+
+Tier coverage is uneven by design of the data, not of the code: the easy tier
+has 38 songs and the impossible tier has 2, because reliable figures below
+roughly 25M streams are the hardest to estimate. That tier should be the first
+one replaced with real data.
+
+### Audio is the open blocker
+
+Ingest produces rows with identity and difficulty and **no audio**, because no
+API can legally supply it. A row with no audio file is never offered for
+selection, so the game simply reports that a tier has no playable songs rather
+than serving a broken round.
+
+```bash
+py scripts/attach_audio.py --from-dir ~/music/audidle   # attach files you hold
+py scripts/attach_audio.py --placeholder                # dev only, synthesized tones
+```
+
+`--placeholder` generates unrelated synthesized audio so the pipeline can be
+exercised end to end. It makes the game runnable, not playable, and says so when
+you run it.
+
 ## What Spotify actually provides
 
 Measured against a real app's credentials rather than assumed. For an app
@@ -158,14 +201,22 @@ What Spotify is genuinely excellent at, and what it is used for here: search,
 track identity, titles, artists, albums, cover art, release dates, explicit
 flags, ISRCs, and track links.
 
-### A consequence worth knowing
+### Duplicate releases, and how guesses are matched
 
-Real Spotify catalogs contain the same song under many track ids: the album
-cut, the single version, a remaster, a deluxe reissue. Because guesses are
-compared on track id, a player who picks the wrong release of the right song is
-currently marked wrong. Matching on ISRC or on a normalized title and artist
-pair would fix it, and the mock catalog does not exhibit the problem, so this
-is unresolved rather than solved.
+Real Spotify catalogs carry the same song under many track ids: the album cut,
+the single, a remaster, a deluxe reissue. Searching "bohemian rhapsody" returns
+at least three. Comparing track ids alone would mark a player wrong for picking
+the remaster of the song they correctly identified.
+
+`app/services/guess_matcher.py` applies three tests in order of confidence:
+
+1. **Track id.** Exact, no false positives.
+2. **ISRC.** Identifies the recording rather than the release, so it accepts a
+   reissue of the same master while still separating a live version or a
+   re-recording. Every ingested row has one.
+3. **Normalized title and artist.** Strips release wording ("- Remastered
+   2011", "(Single Version)"), featured credits, and accents. Requires the
+   artist to match too, so two different songs called "Home" stay distinct.
 
 ## The 0.01 second stage
 
