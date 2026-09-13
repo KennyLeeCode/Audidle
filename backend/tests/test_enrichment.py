@@ -394,7 +394,7 @@ async def test_spotify_enrichment_fills_in_artwork(session):
 
 @pytest.mark.anyio
 async def test_spotify_falls_back_to_metadata_when_there_is_no_isrc(session):
-    song = await make_song(session, duration_ms=200_000)
+    await make_song(session, duration_ms=200_000)
 
     match = DomainSong(
         id="sp-1", title="Blinding Lights", artist="The Weeknd", duration_ms=200_500
