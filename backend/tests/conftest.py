@@ -5,6 +5,7 @@ system, so the rule tests exercise the state machine with no HTTP layer in the
 way. The API tests use a TestClient with the same providers.
 """
 
+import os
 import random
 
 import pytest
@@ -21,6 +22,39 @@ from app.repositories.round_repository import InMemoryRoundRepository
 from app.services.game_service import GameService
 from app.services.recent_songs import RecentSongsTracker
 from app.services.song_service import SongService
+
+
+@pytest.fixture(autouse=True)
+def force_mock_providers(monkeypatch):
+    """Pin the API tests to the mock providers.
+
+    Without this the suite reads whatever .env happens to say, so switching the
+    local default to the Audidle catalog would break tests that have nothing to
+    do with the change. Tests should not depend on a developer's environment.
+    """
+    monkeypatch.setitem(os.environ, "SONG_PROVIDER", "mock")
+    monkeypatch.setitem(os.environ, "POPULARITY_PROVIDER", "mock")
+    monkeypatch.setitem(os.environ, "AUDIO_PROVIDER", "mock")
+
+    # Every provider factory is lru_cached, so the caches have to be cleared
+    # for the new settings to take effect.
+    from app import dependencies
+
+    get_settings.cache_clear()
+    for factory in (
+        dependencies.get_song_catalog_provider,
+        dependencies.get_popularity_provider,
+        dependencies.get_audio_provider,
+        dependencies.get_song_service,
+        dependencies.get_game_service,
+        dependencies.get_round_repository,
+        dependencies.get_recent_songs_tracker,
+    ):
+        factory.cache_clear()
+
+    yield
+
+    get_settings.cache_clear()
 
 
 @pytest.fixture
