@@ -38,6 +38,7 @@ from app.providers.mock import (
     MockPopularityProvider,
     MockSongProvider,
 )
+from app.providers.musicbrainz.musicbrainz_provider import MusicBrainzProvider
 from app.providers.spotify.spotify_client import SpotifyClient
 from app.providers.spotify.spotify_song_provider import SpotifySongProvider
 from app.repositories.round_repository import InMemoryRoundRepository, RoundRepository
@@ -75,6 +76,21 @@ def get_spotify_client() -> SpotifyClient:
     return SpotifyClient(
         client_id=settings.spotify_client_id,
         client_secret=settings.spotify_client_secret,
+    )
+
+
+@lru_cache
+def get_musicbrainz_provider() -> MusicBrainzProvider:
+    """Build the MusicBrainz client.
+
+    Used only by ingestion and enrichment. Nothing on the round creation path
+    touches it, which is what keeps starting a round a local operation.
+    """
+    settings = get_settings()
+    return MusicBrainzProvider(
+        user_agent=settings.musicbrainz_user_agent,
+        contact=settings.musicbrainz_contact,
+        requests_per_second=settings.musicbrainz_rate_limit,
     )
 
 
@@ -261,3 +277,5 @@ async def shutdown_providers() -> None:
     """
     if get_spotify_client.cache_info().currsize:
         await get_spotify_client().aclose()
+    if get_musicbrainz_provider.cache_info().currsize:
+        await get_musicbrainz_provider().aclose()

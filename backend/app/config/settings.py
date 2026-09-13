@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     # results consistent with what a player in that market would recognize.
     spotify_market: str = "US"
 
+    # -- MusicBrainz --------------------------------------------------------
+    # Their policy requires a descriptive User-Agent with contact information.
+    # Requests without one get blocked, so ingestion refuses to start until
+    # MUSICBRAINZ_CONTACT is set.
+    musicbrainz_user_agent: str = "Audidle/0.1"
+    musicbrainz_contact: str = ""
+    # One request per second is their documented anonymous limit.
+    musicbrainz_rate_limit: float = 1.0
+
     # -- Catalog caching ----------------------------------------------------
     # On by default. Autocomplete fires a request per keystroke burst, and
     # Spotify's rate limits are shared across the whole app.
