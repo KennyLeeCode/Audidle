@@ -1,6 +1,9 @@
 """Catalog admin commands.
 
     py -m app.catalog migrate-curated   move the old curated table into the catalog
+    py -m app.catalog enrich-musicbrainz  attach MusicBrainz identity, ISRCs, tags
+    py -m app.catalog enrich-spotify      attach Spotify ids and artwork via ISRC
+    py -m app.catalog recompute           recalculate eligibility for every song
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -41,7 +44,7 @@ async def _with_session(handler, *args):
 # -- Commands ---------------------------------------------------------------
 
 
-async def _migrate_curated(session, settings) -> int:
+async def _migrate_curated(session, settings, force: bool = False) -> int:
     from app.catalog.migrate_curated import migrate_curated_songs
 
     report = await migrate_curated_songs(session, settings.audio_dir)
@@ -61,14 +64,90 @@ async def _migrate_curated(session, settings) -> int:
     return 0
 
 
-async def _stats(session, settings) -> int:
+def _progress(done: int, total: int, title: str) -> None:
+    logger.info("  [%4d/%d] %s", done, total, title[:48])
+
+
+async def _enrich_musicbrainz(session, settings, force: bool = False) -> int:
+    from app.catalog.enrich import enrich_with_musicbrainz
+    from app.dependencies import get_musicbrainz_provider
+
+    provider = get_musicbrainz_provider()
+    logger.info(
+        "enriching from MusicBrainz at %.1f requests per second. "
+        "Safe to interrupt, rerunning resumes where it stopped.",
+        settings.musicbrainz_rate_limit,
+    )
+    try:
+        report = await enrich_with_musicbrainz(
+            session, provider, progress=_progress, force=force
+        )
+    finally:
+        await provider.aclose()
+
+    _render_enrichment("MUSICBRAINZ", report)
+    return 0
+
+
+async def _enrich_spotify(session, settings, force: bool = False) -> int:
+    from app.catalog.enrich import enrich_with_spotify
+    from app.dependencies import get_spotify_client
+    from app.providers.spotify.spotify_song_provider import SpotifySongProvider
+
+    if not settings.spotify_configured:
+        logger.error("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be set")
+        return 1
+
+    client = get_spotify_client()
+    provider = SpotifySongProvider(client=client, market=settings.spotify_market)
+    try:
+        report = await enrich_with_spotify(
+            session, provider, progress=_progress, force=force
+        )
+    finally:
+        await client.aclose()
+
+    _render_enrichment("SPOTIFY", report)
+    return 0
+
+
+async def _recompute(session, settings, force: bool = False) -> int:
+    from app.catalog.enrich import recompute_all_eligibility
+
+    counts = await recompute_all_eligibility(session)
+    logger.info(
+        "recomputed %s songs, %s eligible for play", counts["total"], counts["eligible"]
+    )
+    return 0
+
+
+def _render_enrichment(label: str, report) -> None:
+    logger.info("\n%s ENRICHMENT\n", label)
+    logger.info(f"  considered            {report.considered:>6}")
+    logger.info(f"  already done          {report.skipped_already_done:>6}")
+    logger.info(f"  matched               {report.matched:>6}")
+    logger.info(f"  identifiers added     {report.identifiers_added:>6}")
+    logger.info(f"  ISRCs added           {report.isrcs_added:>6}")
+    logger.info(f"  genres added          {report.genres_added:>6}")
+    logger.info(f"  unresolved            {report.unresolved:>6}")
+    logger.info(f"  failed                {report.failed:>6}")
+
+    if report.reasons:
+        logger.info("\n  unresolved reasons:")
+        for reason in report.reasons[:12]:
+            logger.info(f"      {reason[:96]}")
+        if len(report.reasons) > 12:
+            logger.info(f"      ... and {len(report.reasons) - 12} more")
+
+
+async def _stats(session, settings, force: bool = False) -> int:
     from app.catalog.validate import catalog_stats, render_stats
 
     logger.info(render_stats(await catalog_stats(session)))
     return 0
 
 
-async def _validate(session, settings) -> int:
+async def _validate(session, settings, force: bool = False) -> int:
     from app.catalog.validate import render_problems, validate_catalog
 
     problems = await validate_catalog(session, settings.audio_dir)
@@ -76,7 +155,7 @@ async def _validate(session, settings) -> int:
     return 0
 
 
-async def _unresolved(session, settings) -> int:
+async def _unresolved(session, settings, force: bool = False) -> int:
     from sqlalchemy import select
 
     from app.database.catalog_models import UnresolvedMatch
@@ -101,6 +180,9 @@ async def _unresolved(session, settings) -> int:
 
 COMMANDS = {
     "migrate-curated": _migrate_curated,
+    "enrich-musicbrainz": _enrich_musicbrainz,
+    "enrich-spotify": _enrich_spotify,
+    "recompute": _recompute,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,
@@ -110,9 +192,15 @@ COMMANDS = {
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.catalog", description=__doc__)
     parser.add_argument("command", choices=sorted(COMMANDS))
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="re-run enrichment on songs that already have the provider's id, "
+        "for backfilling data a newer pass collects",
+    )
     args = parser.parse_args(argv)
 
-    return asyncio.run(_with_session(COMMANDS[args.command]))
+    return asyncio.run(_with_session(COMMANDS[args.command], args.force))
 
 
 if __name__ == "__main__":

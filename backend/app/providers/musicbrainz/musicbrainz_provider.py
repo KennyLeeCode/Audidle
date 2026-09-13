@@ -40,6 +40,8 @@ API_BASE = "https://musicbrainz.org/ws/2"
 # Their documented anonymous limit. Deliberately not configurable upward.
 DEFAULT_RATE_LIMIT = 1.0
 MAX_RETRIES = 3
+# Minimum pause after a throttle response, regardless of what Retry-After says.
+MIN_THROTTLE_BACKOFF = 1.0
 
 
 @dataclass(frozen=True)
@@ -139,9 +141,13 @@ class MusicBrainzProvider:
                 # than failing, since this is expected under sustained load.
                 if attempt == MAX_RETRIES - 1:
                     raise CatalogRateLimitedError("MusicBrainz is throttling requests")
-                wait = float(response.headers.get("Retry-After", 2**attempt))
-                logger.warning("MusicBrainz throttled us, waiting %.1fs", wait)
-                await asyncio.sleep(min(wait, 10.0))
+                # Floored, because MusicBrainz often sends Retry-After: 0 and
+                # honouring that literally means retrying instantly, which is
+                # the behaviour that gets a client blocked in the first place.
+                advertised = float(response.headers.get("Retry-After", 0))
+                wait = min(max(advertised, MIN_THROTTLE_BACKOFF * (attempt + 1)), 10.0)
+                logger.debug("MusicBrainz throttled us, waiting %.1fs", wait)
+                await asyncio.sleep(wait)
                 continue
 
             if response.status_code >= 500:
