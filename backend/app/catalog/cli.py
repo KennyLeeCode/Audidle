@@ -9,6 +9,7 @@
     py -m app.catalog enrich-listenbrainz collect listen and unique listener counts
     py -m app.catalog popularity-report   YouTube views against current difficulty
     py -m app.catalog signal-report       YouTube and ListenBrainz side by side
+    py -m app.catalog model-comparison    candidate scoring models, applied to nothing
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -298,6 +299,16 @@ async def _signal_report(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _model_comparison(session, settings, force: bool = False) -> int:
+    from app.catalog.multisignal_report import (
+        build_multisignal_report,
+        render_model_comparison,
+    )
+
+    logger.info(render_model_comparison(await build_multisignal_report(session)))
+    return 0
+
+
 COMMANDS = {
     "migrate-curated": _migrate_curated,
     "enrich-musicbrainz": _enrich_musicbrainz,
@@ -308,6 +319,7 @@ COMMANDS = {
     "enrich-listenbrainz": _enrich_listenbrainz,
     "popularity-report": _popularity_report,
     "signal-report": _signal_report,
+    "model-comparison": _model_comparison,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,

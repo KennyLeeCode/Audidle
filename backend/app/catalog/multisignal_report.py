@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.popularity import (
+    difficulty_from_score,
     score_from_listen_count,
     score_from_listener_count,
     score_from_youtube_views,
@@ -188,13 +189,59 @@ def model_adaptive(row: SignalRow) -> float | None:
     return _blend(row, 0.5)
 
 
+def rescue_model(rescue_weight: float):
+    """YouTube anchored, with ListenBrainz allowed only to lift.
+
+    The asymmetry is the whole idea. A symmetric blend assumes both sources
+    measure the same population, and they do not: ListenBrainz has almost no
+    coverage of mainstream hip-hop, so One Dance shows 7 unique listeners and
+    God's Plan shows 232. Averaging those in punishes a song for an absence in
+    the data rather than for being unknown.
+
+    Letting ListenBrainz raise a score but never lower one turns that absence
+    into a no-op. A low ListenBrainz number stops meaning "obscure" and starts
+    meaning "no information", which is what it actually is, and it needs no
+    listener floor or genre rule to express.
+
+    The cost, stated plainly: a song that is genuinely obscure but happens to
+    be popular among ListenBrainz users gets lifted above where it belongs.
+    That is the trade being tested here.
+    """
+
+    def model(row: SignalRow) -> float | None:
+        youtube = row.youtube_score
+        listeners = row.listener_score
+
+        if youtube is None:
+            return listeners
+        if listeners is None:
+            return youtube
+
+        if listeners > youtube:
+            return round(youtube + rescue_weight * (listeners - youtube), 2)
+        return youtube
+
+    return model
+
+
+model_rescue_20 = rescue_model(0.20)
+model_rescue_30 = rescue_model(0.30)
+model_rescue_40 = rescue_model(0.40)
+
+
 MODELS = {
     "A youtube only": model_youtube_only,
     "B listeners only": model_listeners_only,
     "C youtube 0.7": model_youtube_dominant,
     "D balanced 0.5": model_balanced,
     "E adaptive": model_adaptive,
+    "F20 rescue 20%": model_rescue_20,
+    "F30 rescue 30%": model_rescue_30,
+    "F40 rescue 40%": model_rescue_40,
 }
+
+# The models this comparison is actually about, in the order to report them.
+COMPARED = ("A youtube only", "C youtube 0.7", "F20 rescue 20%", "F30 rescue 30%", "F40 rescue 40%")
 
 
 # -- Statistics --------------------------------------------------------------
@@ -447,5 +494,165 @@ def render_multisignal_report(report: MultiSignalReport) -> str:
             continue
         cells = "".join(f"{_score(model(row)):>7}" for model in MODELS.values())
         lines.append(f"    {row.label[:29]:<30}{cells}")
+
+    return "\n".join(lines) + "\n"
+
+
+# -- Model comparison --------------------------------------------------------
+
+
+# The songs this comparison exists to settle. The first group is where YouTube
+# was measurably wrong, the second is where it had nothing at all.
+FOCUS_SONGS = (
+    "One Dance",
+    "God's Plan",
+    "Lucid Dreams",
+    "Redbone",
+    "Runaway",
+    "Nights",
+    "Pink + White",
+    "Self Control",
+    "Ivy",
+    "Fade Into You",
+    "Bags",
+    "Two Slow Dancers",
+    "Moon River",
+)
+
+
+def _is_focus(row: SignalRow) -> bool:
+    title = row.title.lower()
+    return any(name.lower() in title for name in FOCUS_SONGS)
+
+
+def _tier_of(score: float | None) -> Difficulty | None:
+    return None if score is None else difficulty_from_score(score)
+
+
+def _tier_distance(current: Difficulty | None, proposed: Difficulty | None) -> int:
+    if current is None or proposed is None:
+        return 0
+    return TIER_ORDER.index(proposed) - TIER_ORDER.index(current)
+
+
+def render_model_comparison(report: MultiSignalReport) -> str:
+    rows = report.rows
+    lines: list[str] = ["", "MODEL COMPARISON", ""]
+    lines.append("  A  = YouTube only")
+    lines.append("  C  = 70/30 adaptive weighted blend")
+    lines.append("  F* = YouTube anchored, ListenBrainz can only lift, never lower")
+    lines.append("")
+
+    # -- Headline table ------------------------------------------------------
+    lines += ["  SUMMARY", ""]
+    lines.append(
+        f"    {'model':<16}{'scored':>7}{'unscored':>9}{'median':>8}"
+        f"{'moved':>7}{'moved 2+':>9}{'lifted':>8}"
+    )
+    for name in COMPARED:
+        model = MODELS[name]
+        scores = [(row, model(row)) for row in rows]
+        scored = [(row, value) for row, value in scores if value is not None]
+
+        moved = 0
+        moved_far = 0
+        for row, value in scored:
+            distance = _tier_distance(row.current_difficulty, _tier_of(value))
+            if distance != 0:
+                moved += 1
+            if abs(distance) >= 2:
+                moved_far += 1
+
+        # How many songs this model raised above the plain YouTube score.
+        lifted = sum(
+            1
+            for row, value in scored
+            if row.youtube_score is not None
+            and value is not None
+            and value > row.youtube_score + 0.01
+        )
+
+        median = statistics.median([value for _, value in scored])
+        lines.append(
+            f"    {name:<16}{len(scored):>7}{len(rows) - len(scored):>9}"
+            f"{median:>8.1f}{moved:>7}{moved_far:>9}{lifted:>8}"
+        )
+
+    # -- Tier distribution ---------------------------------------------------
+    lines += ["", "  TIER DISTRIBUTION", ""]
+    header = f"    {'tier':<12}{'current':>9}"
+    for name in COMPARED:
+        header += f"{name.split()[0]:>8}"
+    lines.append(header)
+
+    for tier in TIER_ORDER:
+        current = sum(1 for row in rows if row.current_difficulty is tier)
+        line = f"    {tier.value:<12}{current:>9}"
+        for name in COMPARED:
+            model = MODELS[name]
+            count = sum(1 for row in rows if _tier_of(model(row)) is tier)
+            line += f"{count:>8}"
+        lines.append(line)
+
+    unscored_line = f"    {'unscored':<12}{'0':>9}"
+    for name in COMPARED:
+        model = MODELS[name]
+        unscored_line += f"{sum(1 for row in rows if model(row) is None):>8}"
+    lines.append(unscored_line)
+
+    # -- The focus songs -----------------------------------------------------
+    lines += ["", "  THE SONGS THIS IS ABOUT", ""]
+    lines.append(
+        f"    {'song':<28}{'current':<11}{'yt':>6}{'lb':>6}"
+        + "".join(f"{name.split()[0]:>7}" for name in COMPARED)
+    )
+    for row in rows:
+        if not _is_focus(row):
+            continue
+        cells = "".join(f"{_score(MODELS[name](row)):>7}" for name in COMPARED)
+        lines.append(
+            f"    {row.title[:27]:<28}"
+            f"{(row.current_difficulty.value if row.current_difficulty else '-'):<11}"
+            f"{_score(row.youtube_score):>6}{_score(row.listener_score):>6}{cells}"
+        )
+
+    lines += ["", "  THE SAME SONGS AS TIERS", ""]
+    lines.append(
+        f"    {'song':<28}{'current':<12}"
+        + "".join(f"{name.split()[0]:>13}" for name in COMPARED)
+    )
+    for row in rows:
+        if not _is_focus(row):
+            continue
+        cells = ""
+        for name in COMPARED:
+            tier = _tier_of(MODELS[name](row))
+            cells += f"{(tier.value if tier else '-'):>13}"
+        lines.append(
+            f"    {row.title[:27]:<28}"
+            f"{(row.current_difficulty.value if row.current_difficulty else '-'):<12}{cells}"
+        )
+
+    # -- Biggest disagreements per model -------------------------------------
+    for name in COMPARED:
+        model = MODELS[name]
+        disagreements = []
+        for row in rows:
+            value = model(row)
+            distance = _tier_distance(row.current_difficulty, _tier_of(value))
+            if abs(distance) >= 2:
+                disagreements.append((abs(distance), distance, row, value))
+        disagreements.sort(key=lambda item: -item[0])
+
+        lines += ["", f"  {name}: songs moving 2+ tiers ({len(disagreements)})", ""]
+        if not disagreements:
+            lines.append("    none")
+        for _, distance, row, value in disagreements[:10]:
+            direction = "harder" if distance > 0 else "easier"
+            tier = _tier_of(value)
+            lines.append(
+                f"    {row.current_difficulty.value:<11} -> {(tier.value if tier else '-'):<11}"
+                f"{direction:<8}score {_score(value):>5}  {row.label[:36]}"
+            )
 
     return "\n".join(lines) + "\n"

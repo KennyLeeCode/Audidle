@@ -526,3 +526,77 @@ async def test_sustained_429s_raise_a_rate_limit_error_not_a_quota_error():
         await provider.search_song_video(SONG_TITLE, SONG_ARTIST)
 
     assert not isinstance(caught.value, QuotaExhaustedError)
+
+
+# -- The rescue model --------------------------------------------------------
+#
+# ListenBrainz may lift a YouTube score and may never lower one. The asymmetry
+# is what lets a source with no coverage of a song be a no-op instead of a
+# penalty, with no listener floor and no genre rule.
+
+
+def _rescue_row(youtube_views, listeners):
+    from app.catalog.multisignal_report import SignalRow
+
+    return SignalRow(
+        song_id="s",
+        title="t",
+        artist="a",
+        current_difficulty=None,
+        youtube_views=youtube_views,
+        listeners=listeners,
+    )
+
+
+def test_listenbrainz_never_lowers_a_youtube_score():
+    """One Dance has 7 unique listeners and must not be punished for it."""
+    from app.catalog.multisignal_report import model_rescue_30
+
+    row = _rescue_row(youtube_views=39_300_000, listeners=7)
+
+    assert model_rescue_30(row) == row.youtube_score
+
+
+def test_listenbrainz_lifts_a_low_youtube_score():
+    from app.catalog.multisignal_report import model_rescue_30
+
+    row = _rescue_row(youtube_views=2_500_000, listeners=9_900)
+    lifted = model_rescue_30(row)
+
+    assert lifted > row.youtube_score
+    assert lifted < row.listener_score
+
+
+def test_a_bigger_rescue_weight_lifts_further():
+    from app.catalog.multisignal_report import (
+        model_rescue_20,
+        model_rescue_30,
+        model_rescue_40,
+    )
+
+    row = _rescue_row(youtube_views=2_500_000, listeners=9_900)
+
+    assert model_rescue_20(row) < model_rescue_30(row) < model_rescue_40(row)
+
+
+def test_a_missing_youtube_score_falls_back_to_listenbrainz():
+    """Frank Ocean has no official uploads, and must still be scored."""
+    from app.catalog.multisignal_report import model_rescue_30
+
+    row = _rescue_row(youtube_views=None, listeners=49_700)
+
+    assert model_rescue_30(row) == row.listener_score
+
+
+def test_a_missing_listenbrainz_score_leaves_youtube_alone():
+    from app.catalog.multisignal_report import model_rescue_30
+
+    row = _rescue_row(youtube_views=39_300_000, listeners=None)
+
+    assert model_rescue_30(row) == row.youtube_score
+
+
+def test_no_signals_scores_nothing_rather_than_zero():
+    from app.catalog.multisignal_report import model_rescue_30
+
+    assert model_rescue_30(_rescue_row(None, None)) is None
