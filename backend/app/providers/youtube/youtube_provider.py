@@ -22,6 +22,7 @@ past the configured budget, so a run stops cleanly and resumably rather than
 dying half way through a song.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -46,6 +47,11 @@ COST_PLAYLIST_ITEMS = 1
 # videos.list accepts up to 50 ids for the same single unit, which is what
 # makes refreshing an entire catalog almost free.
 MAX_VIDEO_IDS_PER_CALL = 50
+
+# Short term rate limiting (429) is separate from daily quota exhaustion (403).
+# The first passes on its own, the second does not.
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2.0
 
 
 class QuotaExhaustedError(CatalogRateLimitedError):
@@ -122,38 +128,72 @@ class YouTubePopularityProvider:
     # -- Transport -----------------------------------------------------------
 
     async def _get(self, path: str, params: dict, cost: int) -> dict:
+        """Perform a billed request, retrying short term rate limits.
+
+        Two different limits exist and they are not the same thing. A 403 with
+        "quota" in the body means the day's units are gone and the run should
+        stop. A 429 means too many requests too quickly, which passes on its own
+        after a short wait. Treating the second as fatal, as an earlier version
+        did, silently lost eight songs in one run.
+        """
         self._spend(cost)
         self.request_count += 1
 
-        try:
-            response = await self._http.get(
-                f"{API_BASE}/{path}", params={**params, "key": self._api_key}
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self._http.get(
+                    f"{API_BASE}/{path}", params={**params, "key": self._api_key}
+                )
+            except httpx.HTTPError as error:
+                if attempt == MAX_RETRIES - 1:
+                    raise CatalogUnavailableError("Could not reach the YouTube API") from error
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+
+            if response.status_code == 200:
+                return response.json()
+
+            if response.status_code == 403:
+                body = response.text.lower()
+                if "quota" in body:
+                    # The server side limit, which is authoritative over our count.
+                    self.quota_used = self._budget
+                    raise QuotaExhaustedError("YouTube reports the daily quota is exhausted")
+                raise ProviderConfigurationError(
+                    "YouTube denied the request. Check that the API key is valid and that "
+                    "the YouTube Data API v3 is enabled for the project."
+                )
+
+            if response.status_code == 429:
+                if attempt == MAX_RETRIES - 1:
+                    raise CatalogRateLimitedError(
+                        "YouTube is rate limiting requests, try again shortly"
+                    )
+                wait = float(response.headers.get("Retry-After", 0)) or (
+                    RETRY_BACKOFF_SECONDS * (2**attempt)
+                )
+                logger.warning("YouTube rate limited us, waiting %.1fs", wait)
+                await asyncio.sleep(min(wait, 30.0))
+                continue
+
+            if response.status_code == 400:
+                raise ProviderConfigurationError(
+                    f"YouTube rejected the request: {response.text[:200]}"
+                )
+
+            if response.status_code >= 500:
+                if attempt == MAX_RETRIES - 1:
+                    raise CatalogUnavailableError(
+                        f"YouTube returned {response.status_code}"
+                    )
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+
+            raise CatalogUnavailableError(
+                f"YouTube request to '{path}' failed with {response.status_code}"
             )
-        except httpx.HTTPError as error:
-            raise CatalogUnavailableError("Could not reach the YouTube API") from error
 
-        if response.status_code == 200:
-            return response.json()
-
-        if response.status_code == 403:
-            body = response.text.lower()
-            if "quota" in body:
-                # The server side limit, which is authoritative over our count.
-                self.quota_used = self._budget
-                raise QuotaExhaustedError("YouTube reports the daily quota is exhausted")
-            raise ProviderConfigurationError(
-                "YouTube denied the request. Check that the API key is valid and that "
-                "the YouTube Data API v3 is enabled for the project."
-            )
-
-        if response.status_code == 400:
-            raise ProviderConfigurationError(
-                f"YouTube rejected the request: {response.text[:200]}"
-            )
-
-        raise CatalogUnavailableError(
-            f"YouTube request to '{path}' failed with {response.status_code}"
-        )
+        raise CatalogUnavailableError("YouTube did not respond after several attempts")
 
     # -- Lookups -------------------------------------------------------------
 

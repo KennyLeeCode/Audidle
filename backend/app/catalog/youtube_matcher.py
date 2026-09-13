@@ -68,6 +68,43 @@ VEVO = "vevo"
 
 _BRACKETS = re.compile(r"[\(\[].*?[\)\]]")
 
+# Wording YouTube uploads add that says nothing about which recording this is.
+# Removed from the video title before comparison so the song title can be found
+# inside it.
+UPLOAD_NOISE = (
+    "official music video", "official video", "official audio", "official hd video",
+    "official lyric video", "official visualizer", "official trailer",
+    "lyric video", "lyrics video", "with lyrics", "lyrics", "visualizer",
+    "audio only", "full song", "hd", "hq", "4k", "1080p", "m/v", "mv",
+    "explicit", "clean version", "official", "music video", "video",
+)
+
+# Qualifiers that identify *which recording* this is. These must agree between
+# the catalog title and the video title, because a demo, a live take, and an
+# acoustic rendition are different recordings with different audiences.
+#
+# Matched on word boundaries, since "remix" contains "mix" and "remastered"
+# contains "remaster", and a substring check would collapse them.
+VERSION_TOKENS: dict[str, tuple[str, ...]] = {
+    "demo": ("demo",),
+    "live": ("live", "concert", "unplugged", "session"),
+    "acoustic": ("acoustic",),
+    "remix": ("remix", "bootleg", "flip"),
+    "radio_edit": ("radio edit",),
+    "remaster": ("remaster", "remastered"),
+    "instrumental": ("instrumental",),
+    "edit": ("edit",),
+    "mix": ("mix",),
+    "single_version": ("single version",),
+    "extended": ("extended",),
+    "sped_up": ("sped up", "spedup", "slowed"),
+}
+
+_VERSION_PATTERNS = {
+    name: re.compile(r"\b(" + "|".join(re.escape(word) for word in words) + r")\b", re.I)
+    for name, words in VERSION_TOKENS.items()
+}
+
 
 class VideoMatchConfidence(str, Enum):
     """How sure we are that a video represents the song."""
@@ -99,6 +136,54 @@ class VideoMatch:
 
 def _strip_brackets(text: str) -> str:
     return _BRACKETS.sub(" ", text)
+
+
+def _strip_version_words(title: str) -> str:
+    """Remove version wording, once the versions have already been compared."""
+    text = title
+    for pattern in _VERSION_PATTERNS.values():
+        text = pattern.sub(" ", text)
+    return text
+
+
+def extract_versions(title: str) -> frozenset[str]:
+    """Which version qualifiers a title claims.
+
+    Applied to both the catalog title and the video title so they can be
+    compared like for like. This is the fix for songs such as "Jasmine - Demo",
+    where stripping brackets from "Jai Paul - Jasmine (Demo)" threw away the one
+    word that made the two titles the same recording.
+
+    "remix" is checked before "mix" and "remastered" before "remaster" by using
+    word boundaries, so the longer token does not get read as the shorter one.
+    """
+    found = set()
+    for name, pattern in _VERSION_PATTERNS.items():
+        if pattern.search(title):
+            found.add(name)
+
+    # Longer qualifiers absorb the shorter ones they contain, so a radio edit
+    # is not separately reported as an edit and a remix is not also a mix.
+    if "remix" in found:
+        found.discard("mix")
+    if "radio_edit" in found:
+        found.discard("edit")
+    if "sped_up" in found:
+        found.discard("edit")
+    return frozenset(found)
+
+
+def strip_upload_noise(title: str) -> str:
+    """Remove YouTube's decoration, keeping version qualifiers intact.
+
+    Deliberately does not strip brackets wholesale. "(Official Video)" is noise
+    and "(Demo)" is identity, and they look identical to a bracket stripper.
+    """
+    text = title.lower()
+    for phrase in UPLOAD_NOISE:
+        text = re.sub(r"[\(\[]?\s*\b" + re.escape(phrase) + r"\b\s*[\)\]]?", " ", text)
+    # Trailing separators left behind by the removals.
+    return re.sub(r"[\|\-–—:]+\s*$", " ", text).strip()
 
 
 def is_disqualified(video_title: str, song_title: str) -> str | None:
@@ -157,8 +242,27 @@ def score_candidate(
             f"video title contains '{disqualifier}'",
         )
 
-    normalized_video_title = normalize_title(_strip_brackets(video.title))
-    normalized_song_title = normalize_title(song_title)
+    # Version qualifiers are compared before the titles, because they decide
+    # whether these are even the same recording.
+    song_versions = extract_versions(song_title)
+    video_versions = extract_versions(video.title)
+
+    if song_versions != video_versions:
+        return VideoMatch(
+            video,
+            VideoMatchConfidence.UNRESOLVED,
+            "version_mismatch",
+            0,
+            f"version differs: song {sorted(song_versions) or 'studio'} against "
+            f"video {sorted(video_versions) or 'studio'}",
+        )
+
+    # Base titles, with the version wording removed from both sides so it is not
+    # counted twice, and upload decoration removed from the video only.
+    normalized_video_title = normalize_title(
+        _strip_version_words(strip_upload_noise(video.title))
+    )
+    normalized_song_title = normalize_title(_strip_version_words(song_title))
 
     title_present = bool(normalized_song_title) and normalized_song_title in normalized_video_title
     if not title_present:

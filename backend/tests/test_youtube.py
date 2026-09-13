@@ -482,3 +482,47 @@ def test_unverified_ties_are_still_sent_to_review():
     )
 
     assert chosen is None
+
+
+# -- Rate limiting is not quota exhaustion -----------------------------------
+#
+# Found during the retry run: eight songs were lost to HTTP 429, which the
+# provider treated as fatal. A 429 passes on its own after a short wait. A 403
+# carrying "quota" does not.
+
+
+@pytest.mark.anyio
+async def test_a_429_is_retried_rather_than_failing():
+    responses = [
+        httpx.Response(429, headers={"Retry-After": "0"}),
+        httpx.Response(200, json={"items": []}),
+    ]
+
+    def handler(request):
+        return responses.pop(0)
+
+    provider = YouTubePopularityProvider("k", daily_quota=10_000)
+    provider._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+    result = await provider.search_song_video(SONG_TITLE, SONG_ARTIST)
+
+    assert result == []
+    assert not responses
+
+
+@pytest.mark.anyio
+async def test_sustained_429s_raise_a_rate_limit_error_not_a_quota_error():
+    """These must stay distinguishable, because they need different responses."""
+    from app.core.errors import CatalogRateLimitedError
+
+    provider = YouTubePopularityProvider("k", daily_quota=10_000)
+    provider._http = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(429, headers={"Retry-After": "0"})
+        )
+    )
+
+    with pytest.raises(CatalogRateLimitedError) as caught:
+        await provider.search_song_video(SONG_TITLE, SONG_ARTIST)
+
+    assert not isinstance(caught.value, QuotaExhaustedError)
