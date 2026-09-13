@@ -190,12 +190,16 @@ def test_the_official_video_beats_a_lyric_video():
     assert chosen.video.video_id == "official"
 
 
-def test_nothing_is_chosen_when_two_candidates_are_close():
-    """The official video and a reupload can differ by an order of magnitude."""
+def test_nothing_is_chosen_when_two_unofficial_candidates_are_close():
+    """A reupload and a compilation channel can differ by an order of magnitude.
+
+    Two official uploads on the artist's own channel are handled differently,
+    see test_the_most_watched_official_upload_wins.
+    """
     chosen = pick_best_video(
         [
-            video("The Weeknd - Blinding Lights (Official Video)", vid="a"),
-            video("The Weeknd - Blinding Lights (Official Audio)", vid="b"),
+            video("The Weeknd - Blinding Lights", channel="Music Archive", vid="a"),
+            video("The Weeknd - Blinding Lights", channel="Best Hits 2020", vid="b"),
         ],
         SONG_TITLE,
         SONG_ARTIST,
@@ -385,3 +389,96 @@ def test_log_normalize_handles_a_degenerate_range():
 def test_scores_bucket_into_tiers():
     assert difficulty_from_score(95.0) is Difficulty.EASY
     assert difficulty_from_score(10.0) is Difficulty.IMPOSSIBLE
+
+
+# -- Official uploads that run longer than the recording ---------------------
+#
+# Found by a live smoke test rather than by reasoning. Searching "Blinding
+# Lights" returns the official video at 1.06B views running 4:22, and the
+# official audio at 879M views running 3:20. The catalog stores the 3:20
+# recording, so a strict duration check rejected the official video and settled
+# for the audio upload, understating the song by 180 million views.
+
+
+def test_an_official_video_with_an_intro_is_still_accepted():
+    """Music videos legitimately run longer than the recording."""
+    match = score_candidate(
+        video(
+            "The Weeknd - Blinding Lights (Official Video)",
+            duration_ms=262_000,  # 4:22 against a 3:20 recording
+        ),
+        SONG_TITLE,
+        SONG_ARTIST,
+        SONG_MS,
+    )
+
+    assert match.confidence is VideoMatchConfidence.VERIFIED_OFFICIAL
+
+
+def test_an_upload_much_longer_than_the_recording_is_still_rejected():
+    """The allowance covers intros, not hour long loops or extended mixes."""
+    match = score_candidate(
+        video("Blinding Lights", channel="Some Channel", duration_ms=1_800_000),
+        SONG_TITLE,
+        SONG_ARTIST,
+        SONG_MS,
+    )
+
+    assert match.confidence is VideoMatchConfidence.UNRESOLVED
+
+
+def test_an_upload_much_shorter_than_the_recording_is_rejected():
+    """Shorter usually means a clip or a trailer, not the song."""
+    match = score_candidate(
+        video("The Weeknd - Blinding Lights (Official Video)", duration_ms=30_000),
+        SONG_TITLE,
+        SONG_ARTIST,
+        SONG_MS,
+    )
+
+    assert match.confidence is not VideoMatchConfidence.VERIFIED_OFFICIAL
+
+
+def test_the_most_watched_official_upload_wins():
+    """Both are legitimately the song, so this is not ambiguity.
+
+    The question being answered is how widely heard the song is, and the
+    canonical video carries that audience.
+    """
+    chosen = pick_best_video(
+        [
+            video(
+                "The Weeknd - Blinding Lights (Official Audio)",
+                duration_ms=200_000,
+                views=878_935_740,
+                vid="audio",
+            ),
+            video(
+                "The Weeknd - Blinding Lights (Official Video)",
+                duration_ms=262_000,
+                views=1_063_243_802,
+                vid="video",
+            ),
+        ],
+        SONG_TITLE,
+        SONG_ARTIST,
+        SONG_MS,
+    )
+
+    assert chosen is not None
+    assert chosen.video.video_id == "video"
+
+
+def test_unverified_ties_are_still_sent_to_review():
+    """Ambiguity across unrelated channels is a different problem."""
+    chosen = pick_best_video(
+        [
+            video("The Weeknd - Blinding Lights", channel="Uploads A", vid="a"),
+            video("The Weeknd - Blinding Lights", channel="Uploads B", vid="b"),
+        ],
+        SONG_TITLE,
+        SONG_ARTIST,
+        SONG_MS,
+    )
+
+    assert chosen is None
