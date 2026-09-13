@@ -25,6 +25,7 @@ import logging
 import sys
 
 from app.config.settings import get_settings
+from app.core.logging_safety import install_log_redaction
 from app.database.database import (
     build_engine,
     build_session_factory,
@@ -33,6 +34,9 @@ from app.database.database import (
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
+# API keys travel as query parameters and httpx logs full URLs at INFO, so
+# redaction is installed before anything can make a request.
+install_log_redaction()
 logger = logging.getLogger("catalog")
 
 

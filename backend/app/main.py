@@ -19,6 +19,7 @@ from app.api import health as health_router
 from app.api import search as search_router
 from app.config.settings import get_settings
 from app.core.errors import AudidleError
+from app.core.logging_safety import install_log_redaction
 from app.dependencies import shutdown_providers, validate_provider_combination
 from app.schemas.game import ErrorResponse
 
@@ -36,6 +37,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Build the application. A factory so tests can construct isolated apps."""
     settings = get_settings()
+    # API keys travel as query parameters, and httpx logs full URLs at INFO.
+    install_log_redaction()
     logging.basicConfig(
         level=settings.log_level.upper(),
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
