@@ -51,7 +51,9 @@ def video(title, channel="Jai Paul", duration_ms=253_000, views=5_000_000):
         ("Cherry Wine - Live", {"live"}),
         ("Hozier - Cherry Wine (Live)", {"live"}),
         ("Song - Acoustic", {"acoustic"}),
-        ("Song - 2011 Remaster", {"remaster"}),
+        # A remaster is the same performance, so it is deliberately not a
+        # version qualifier here. See test_a_remaster_is_treated_as_the_same_song.
+        ("Song - 2011 Remaster", set()),
         ("Song (Radio Edit)", {"radio_edit"}),
         ("BTSTU - Edit", {"edit"}),
     ],
@@ -160,20 +162,30 @@ def test_an_acoustic_version_does_not_match_the_studio_song():
     assert not match.accepted
 
 
-def test_a_remaster_does_not_stand_in_for_the_original_here():
-    """The catalog resolver is generous about remasters, this is not.
+def test_a_remaster_is_treated_as_the_same_song():
+    """Found during the match audit, on real data.
 
-    For popularity the remaster and the original are separate uploads with
-    separate view counts, so mixing them would double count or undercount.
+    Queen's official upload is titled "Bohemian Rhapsody (Official Video
+    Remastered)" and has 2.1 billion views. Treating "remastered" as a distinct
+    version rejected it, which was clearly wrong: a remaster is the same
+    performance through a different mastering chain, and on YouTube the
+    remastered upload usually *is* the canonical video.
+
+    Demos, live takes, acoustic renditions, and remixes stay distinct, because
+    those are different performances.
     """
     match = score_candidate(
-        video("Bohemian Rhapsody (2011 Remaster)", channel="Queen Official"),
+        video(
+            "Queen - Bohemian Rhapsody (Official Video Remastered)",
+            channel="Queen Official",
+            duration_ms=360_000,
+        ),
         "Bohemian Rhapsody",
         "Queen",
         355_000,
     )
 
-    assert not match.accepted
+    assert match.accepted
 
 
 def test_the_ordinary_case_still_works():
@@ -189,3 +201,64 @@ def test_the_ordinary_case_still_works():
     )
 
     assert match.confidence is VideoMatchConfidence.VERIFIED_OFFICIAL
+
+
+# -- Channel ownership, tightened after the match audit ----------------------
+#
+# The audit found "mitski lyrics" accepted as Mitski's own channel, which made a
+# fan lyric video with 912 views the popularity signal for Two Slow Dancers. The
+# old rule accepted any channel *containing* the artist name.
+
+
+@pytest.mark.parametrize(
+    ("channel", "artist", "expected"),
+    [
+        # Real official shapes.
+        ("Mitski", "Mitski", True),
+        ("TheWeekndVEVO", "The Weeknd", True),
+        ("Clairo - Topic", "Clairo", True),
+        ("Mac DeMarco - Topic", "Mac DeMarco", True),
+        ("ChainsmokersVEVO", "The Chainsmokers", True),
+        ("BORNSmusicVEVO", "BORNS", True),
+        ("Queen Official", "Queen", True),
+        # Fan and aggregator channels that embed the artist name.
+        ("mitski lyrics", "Mitski", False),
+        ("Drake Media", "Drake", False),
+        ("SirSoloDolo", "Childish Gambino", False),
+        ("Mitski Fan Uploads", "Mitski", False),
+        ("Best of Drake", "Drake", False),
+    ],
+)
+def test_channel_ownership_requires_more_than_containment(channel, artist, expected):
+    from app.catalog.youtube_matcher import channel_matches_artist
+
+    assert channel_matches_artist(channel, artist) is expected
+
+
+def test_a_television_performance_is_disqualified():
+    """Jimmy Kimmel Live was accepted as the canonical Lucid Dreams upload."""
+    from app.catalog.youtube_matcher import is_disqualified
+
+    assert (
+        is_disqualified(
+            "Juice WRLD - Lucid Dreams (Jimmy Kimmel Live!/2018)(Official Video)",
+            "Lucid Dreams",
+        )
+        is not None
+    )
+
+
+def test_a_fan_lyric_video_is_not_verified_official():
+    """The Two Slow Dancers case, end to end."""
+    match = score_candidate(
+        video(
+            "Two Slow Dancers (Lyrics) - Mitski || mitski lyrics",
+            channel="mitski lyrics",
+            duration_ms=236_000,
+        ),
+        "Two Slow Dancers",
+        "Mitski",
+        239_303,
+    )
+
+    assert not match.accepted

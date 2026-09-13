@@ -48,7 +48,18 @@ OFFICIAL_INTRO_ALLOWANCE_MS = 180_000
 # phrase should be allowed, not just the exact one that happens to appear in
 # both titles.
 DISQUALIFYING: dict[str, tuple[str, ...]] = {
-    "live": ("live at", "live from", "live in", "live on", "(live", "[live", "- live", "concert"),
+    # Bare "live" is included, matched on a word boundary. It catches television
+    # performances such as "Lucid Dreams (Jimmy Kimmel Live!/2018)", which an
+    # earlier list of "live at / live from" phrases let through, making a TV
+    # appearance the popularity signal for the song.
+    "live": (
+        "live",
+        "concert",
+        "unplugged",
+        "session",
+        "tiny desk",
+        "performance",
+    ),
     "remix": ("remix", "bootleg", "mashup", "edit by", "flip)"),
     "altered": ("sped up", "speed up", "spedup", "slowed", "reverb", "nightcore", "8d audio"),
     "cover": ("cover by", "cover)", "acoustic cover", "piano version", "ai cover", "ai version"),
@@ -85,13 +96,18 @@ UPLOAD_NOISE = (
 #
 # Matched on word boundaries, since "remix" contains "mix" and "remastered"
 # contains "remaster", and a substring check would collapse them.
+# Note what is absent: "remaster". A remaster is the same performance run
+# through a different mastering chain, and on YouTube the remastered upload is
+# usually *the* official video, as with Queen's "Bohemian Rhapsody (Official
+# Video Remastered)" at 2.1 billion views. Treating it as a distinct version
+# rejected the obviously correct match. Demos, live takes, acoustic renditions,
+# and remixes are different performances and stay in the list.
 VERSION_TOKENS: dict[str, tuple[str, ...]] = {
     "demo": ("demo",),
     "live": ("live", "concert", "unplugged", "session"),
     "acoustic": ("acoustic",),
     "remix": ("remix", "bootleg", "flip"),
     "radio_edit": ("radio edit",),
-    "remaster": ("remaster", "remastered"),
     "instrumental": ("instrumental",),
     "edit": ("edit",),
     "mix": ("mix",),
@@ -208,24 +224,57 @@ def is_disqualified(video_title: str, song_title: str) -> str | None:
 
 
 def channel_matches_artist(channel_title: str, artist: str) -> bool:
-    """Whether a channel plausibly belongs to the artist.
+    """Whether a channel actually belongs to the artist.
 
-    Covers the three shapes that actually occur: an artist's own channel, the
-    auto-generated "Artist - Topic" channel, and a Vevo channel.
+    Requires an exact match once the known official suffixes are stripped. An
+    earlier version accepted any channel *containing* the artist name, which is
+    how "mitski lyrics" was accepted as Mitski's own channel and a fan lyric
+    video with 912 views became the popularity signal for Two Slow Dancers.
+
+    Fan and aggregator channels almost always embed the artist name, so
+    containment is not evidence of ownership. The shapes that are real:
+
+        Mitski                 the artist's own channel
+        TheWeekndVEVO          a Vevo channel
+        Clairo - Topic         YouTube's auto-generated rights holder channel
+        Ed Sheeran Official    an explicitly labelled official channel
+
+    A leading "the" is ignored on both sides, so "ChainsmokersVEVO" matches
+    "The Chainsmokers".
     """
-    channel = normalize_artist(channel_title.replace(TOPIC_CHANNEL, ""))
     wanted = normalize_artist(artist)
+    # Lowercased before stripping, because the channel is titled "Clairo - Topic"
+    # and a case sensitive strip left "clairo topic", which no longer matched
+    # once the loose containment rule was removed.
+    lowered = channel_title.lower()
+    if lowered.endswith(TOPIC_CHANNEL):
+        lowered = lowered[: -len(TOPIC_CHANNEL)]
+    channel = normalize_artist(lowered)
     if not channel or not wanted:
         return False
 
-    if channel == wanted:
-        return True
-    # "TheWeekndVEVO" against "The Weeknd".
     compact_channel = channel.replace(" ", "")
     compact_wanted = wanted.replace(" ", "")
-    if compact_channel in (compact_wanted, compact_wanted + VEVO):
-        return True
-    return compact_wanted in compact_channel and len(compact_wanted) >= 4
+
+    # Suffixes that mark an official channel rather than a different one.
+    # Deliberately short: "media", "lyrics", "hits", and "music" are omitted
+    # because fan channels use them far more often than artists do.
+    # "musicvevo" is checked before "vevo" so the longer suffix wins. A bare
+    # "music" suffix is never stripped, since fan channels use it constantly,
+    # but combined with Vevo it is unambiguously the artist's own channel.
+    for suffix in ("musicvevo", "vevomusic", VEVO, "official", "officialchannel"):
+        if compact_channel.endswith(suffix):
+            compact_channel = compact_channel[: -len(suffix)]
+            break
+
+    for text in (compact_channel, compact_wanted):
+        if not text:
+            return False
+
+    stripped_channel = compact_channel.removeprefix("the")
+    stripped_wanted = compact_wanted.removeprefix("the")
+
+    return stripped_channel == stripped_wanted
 
 
 def score_candidate(
