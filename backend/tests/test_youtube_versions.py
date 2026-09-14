@@ -262,3 +262,59 @@ def test_a_fan_lyric_video_is_not_verified_official():
     )
 
     assert not match.accepted
+
+
+# -- "Unofficial" must not read as "official" -------------------------------
+#
+# Found during enrichment. "Phoenix - Lisztomania (Unofficial Video)" on a fan
+# channel with 767K views was accepted, because the substring check saw
+# "official video" inside "unofficial video". That single credit was worth 20
+# points, enough to push the upload over the acceptance bar and make a fan
+# reupload the song's popularity measurement.
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("Artist - Song (Official Video)", True),
+        ("Artist - Song (Official Music Video)", True),
+        ("Artist - Song (Official Audio)", True),
+        ("Artist - Song (Unofficial Video)", False),
+        ("Artist - Song (unofficial audio)", False),
+        ("Artist - Song", False),
+    ],
+)
+def test_official_marker_requires_a_word_boundary(title, expected):
+    from app.catalog.youtube_matcher import has_official_marker
+
+    assert has_official_marker(title) is expected
+
+
+def test_an_unofficial_fan_upload_is_rejected():
+    """The exact case, end to end."""
+    match = score_candidate(
+        video(
+            "Phoenix - Lisztomania (Unofficial Video)",
+            channel="Mito Tomi",
+            duration_ms=243_000,
+        ),
+        "Lisztomania",
+        "Phoenix",
+        241_640,
+    )
+
+    assert not match.accepted
+
+
+def test_the_version_vocabulary_lives_in_one_place():
+    """The matcher must not carry its own copy of the version tokens.
+
+    An earlier attempt at this refactor silently did not apply, leaving two
+    copies that happened to agree. Comparing them proved nothing.
+    """
+    import app.catalog.youtube_matcher as matcher
+    import app.services.song_versions as versions
+
+    assert matcher.extract_versions is versions.extract_versions
+    assert matcher.strip_version_words is versions.strip_version_words
+    assert not hasattr(matcher, "VERSION_TOKENS")

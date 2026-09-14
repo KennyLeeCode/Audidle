@@ -29,6 +29,7 @@ from enum import Enum
 
 from app.providers.youtube.youtube_provider import YouTubeVideo
 from app.services.guess_matcher import normalize_artist, normalize_title
+from app.services.song_versions import extract_versions, strip_version_words
 
 # How far a video may differ from the known recording length. YouTube uploads
 # carry intros, outros, and label idents, so this is looser than the catalog
@@ -70,7 +71,26 @@ DISQUALIFYING: dict[str, tuple[str, ...]] = {
 }
 
 # Wording that marks the canonical upload.
+#
+# Matched on a word boundary, not as a plain substring. "Unofficial Video"
+# contains "official video", and reading it as an official marker was enough
+# to push a fan upload over the acceptance bar and make it a song's
+# popularity measurement.
 OFFICIAL_MARKERS = ("official video", "official music video", "official audio", "official hd")
+
+_OFFICIAL_MARKER_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(marker) for marker in OFFICIAL_MARKERS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def has_official_marker(title: str) -> bool:
+    """Whether a title claims to be the official upload.
+
+    The word boundary is the entire point: "unofficial" must not read as
+    "official".
+    """
+    return bool(_OFFICIAL_MARKER_PATTERN.search(title))
 LYRIC_MARKERS = ("lyric video", "lyrics", "with lyrics")
 
 # Channels YouTube generates for rights holders. Reliable and very common.
@@ -89,38 +109,6 @@ UPLOAD_NOISE = (
     "audio only", "full song", "hd", "hq", "4k", "1080p", "m/v", "mv",
     "explicit", "clean version", "official", "music video", "video",
 )
-
-# Qualifiers that identify *which recording* this is. These must agree between
-# the catalog title and the video title, because a demo, a live take, and an
-# acoustic rendition are different recordings with different audiences.
-#
-# Matched on word boundaries, since "remix" contains "mix" and "remastered"
-# contains "remaster", and a substring check would collapse them.
-# Note what is absent: "remaster". A remaster is the same performance run
-# through a different mastering chain, and on YouTube the remastered upload is
-# usually *the* official video, as with Queen's "Bohemian Rhapsody (Official
-# Video Remastered)" at 2.1 billion views. Treating it as a distinct version
-# rejected the obviously correct match. Demos, live takes, acoustic renditions,
-# and remixes are different performances and stay in the list.
-VERSION_TOKENS: dict[str, tuple[str, ...]] = {
-    "demo": ("demo",),
-    "live": ("live", "concert", "unplugged", "session"),
-    "acoustic": ("acoustic",),
-    "remix": ("remix", "bootleg", "flip"),
-    "radio_edit": ("radio edit",),
-    "instrumental": ("instrumental",),
-    "edit": ("edit",),
-    "mix": ("mix",),
-    "single_version": ("single version",),
-    "extended": ("extended",),
-    "sped_up": ("sped up", "spedup", "slowed"),
-}
-
-_VERSION_PATTERNS = {
-    name: re.compile(r"\b(" + "|".join(re.escape(word) for word in words) + r")\b", re.I)
-    for name, words in VERSION_TOKENS.items()
-}
-
 
 class VideoMatchConfidence(str, Enum):
     """How sure we are that a video represents the song."""
@@ -155,41 +143,6 @@ class VideoMatch:
 
 def _strip_brackets(text: str) -> str:
     return _BRACKETS.sub(" ", text)
-
-
-def _strip_version_words(title: str) -> str:
-    """Remove version wording, once the versions have already been compared."""
-    text = title
-    for pattern in _VERSION_PATTERNS.values():
-        text = pattern.sub(" ", text)
-    return text
-
-
-def extract_versions(title: str) -> frozenset[str]:
-    """Which version qualifiers a title claims.
-
-    Applied to both the catalog title and the video title so they can be
-    compared like for like. This is the fix for songs such as "Jasmine - Demo",
-    where stripping brackets from "Jai Paul - Jasmine (Demo)" threw away the one
-    word that made the two titles the same recording.
-
-    "remix" is checked before "mix" and "remastered" before "remaster" by using
-    word boundaries, so the longer token does not get read as the shorter one.
-    """
-    found = set()
-    for name, pattern in _VERSION_PATTERNS.items():
-        if pattern.search(title):
-            found.add(name)
-
-    # Longer qualifiers absorb the shorter ones they contain, so a radio edit
-    # is not separately reported as an edit and a remix is not also a mix.
-    if "remix" in found:
-        found.discard("mix")
-    if "radio_edit" in found:
-        found.discard("edit")
-    if "sped_up" in found:
-        found.discard("edit")
-    return frozenset(found)
 
 
 def strip_upload_noise(title: str) -> str:
@@ -312,9 +265,9 @@ def score_candidate(
     # Base titles, with the version wording removed from both sides so it is not
     # counted twice, and upload decoration removed from the video only.
     normalized_video_title = normalize_title(
-        _strip_version_words(strip_upload_noise(video.title))
+        strip_version_words(strip_upload_noise(video.title))
     )
-    normalized_song_title = normalize_title(_strip_version_words(song_title))
+    normalized_song_title = normalize_title(strip_version_words(song_title))
 
     title_present = bool(normalized_song_title) and normalized_song_title in normalized_video_title
     if not title_present:
@@ -329,7 +282,7 @@ def score_candidate(
     is_topic = video.channel_title.lower().endswith(TOPIC_CHANNEL)
     official_channel = channel_matches_artist(video.channel_title, song_artist)
     lowered_title = video.title.lower()
-    has_official_marker = any(marker in lowered_title for marker in OFFICIAL_MARKERS)
+    official_marker = has_official_marker(video.title)
     has_lyric_marker = any(marker in lowered_title for marker in LYRIC_MARKERS)
 
     # The artist named in the video title, for uploads on channels that are not
@@ -360,7 +313,7 @@ def score_candidate(
         score += 30
         reasons.append("topic channel")
         evidence.add("topic_channel")
-    if has_official_marker:
+    if official_marker:
         score += 20
         reasons.append("official marker")
         evidence.add("official_marker")
