@@ -19,7 +19,12 @@ Written against generic artists so no single song is special-cased.
 
 import pytest
 
-from app.catalog.youtube_matcher import VideoMatchConfidence, pick_best_video, score_candidate
+from app.catalog.youtube_matcher import (
+    VideoMatchConfidence,
+    has_canonical_evidence,
+    pick_best_video,
+    score_candidate,
+)
 from app.providers.youtube.youtube_provider import YouTubeVideo
 
 ARTIST = "Nova Vale"
@@ -424,3 +429,154 @@ def test_one_dominant_anonymous_upload_is_not_ambiguous():
 
     assert chosen is not None
     assert chosen.video.video_id == "large"
+
+
+# -- The constrained dominance bar ------------------------------------------
+#
+# The full 20x bar is the wrong shape for a common real case: an artist's own
+# channel hosts an official *audio* upload while the official *music video*
+# lives on the channel that produced it. The video carries most of the audience
+# but the gap is usually single digit multiples.
+#
+# So a candidate showing strong canonical evidence gets a 5x bar instead. An
+# anonymous reupload gets no discount. The privilege is earned from metadata we
+# already have, never from a list of channel names.
+
+
+def canonical_upload(views, video_id="canonical", channel="Indie Film Collective"):
+    """An official music video hosted somewhere other than the artist channel.
+
+    Names the artist, states an official marker, matches the recording length,
+    and claims no alternate version. Lower authority, strong evidence.
+    """
+    return upload(
+        channel,
+        views,
+        title=f"{ARTIST} - {TITLE} (Official Music Video)",
+        video_id=video_id,
+    )
+
+
+def official_audio(views, video_id="audio"):
+    """The artist's own channel hosting an official audio upload."""
+    return upload(
+        ARTIST,
+        views,
+        title=f"{ARTIST} - {TITLE} (Official Audio)",
+        video_id=video_id,
+    )
+
+
+def bare_reupload(views, video_id="reupload"):
+    """An accepted upload that lacks canonical evidence.
+
+    It clears identity validation on an official marker and a matching
+    duration, but never names the artist, so it does not present itself as the
+    official release of this specific recording.
+    """
+    return upload(
+        "Daily Music Uploads",
+        views,
+        title=f"{TITLE} (Official Video)",
+        video_id=video_id,
+    )
+
+
+def test_canonical_evidence_is_recognised():
+    match = score_candidate(canonical_upload(1_000), TITLE, ARTIST, SONG_MS)
+
+    assert match.accepted
+    assert has_canonical_evidence(match)
+    assert match.confidence is VideoMatchConfidence.HIGH_CONFIDENCE
+
+
+def test_a_bare_reupload_has_no_canonical_evidence():
+    """Accepted as the right recording, but not as the official release of it."""
+    match = score_candidate(bare_reupload(1_000), TITLE, ARTIST, SONG_MS)
+
+    assert match.accepted
+    assert not has_canonical_evidence(match)
+
+
+def test_a_canonical_candidate_wins_at_seven_times_the_audience():
+    """Case 1. Below the 20x bar, above the 5x one."""
+    chosen = choose(official_audio(166_000_000), canonical_upload(1_209_000_000))
+
+    assert chosen is not None
+    assert chosen.video.video_id == "canonical"
+
+
+def test_a_canonical_candidate_loses_at_twice_the_audience():
+    """Case 2. The relaxed bar is 5x, not any advantage at all."""
+    chosen = choose(official_audio(166_000_000), canonical_upload(332_000_000))
+
+    assert chosen.video.video_id == "audio"
+
+
+def test_the_relaxed_bar_is_exactly_five_times():
+    below = choose(official_audio(100_000_000), canonical_upload(499_000_000))
+    at_or_above = choose(official_audio(100_000_000), canonical_upload(500_000_000))
+
+    assert below.video.video_id == "audio"
+    assert at_or_above.video.video_id == "canonical"
+
+
+def test_a_reupload_does_not_get_the_relaxed_bar():
+    """Case 3. Seven times the audience, but no canonical evidence."""
+    chosen = choose(official_audio(166_000_000), bare_reupload(1_209_000_000))
+
+    assert chosen.video.video_id == "audio"
+
+
+def test_a_reupload_still_wins_under_the_full_bar():
+    """The normal 20x rule is unchanged for candidates without evidence."""
+    chosen = choose(official_audio(10_000_000), bare_reupload(900_000_000))
+
+    assert chosen.video.video_id == "reupload"
+
+
+@pytest.mark.parametrize(
+    "title_suffix",
+    ["(Live at Wembley)", "(Kygo Remix)", "(Acoustic)", "(Sped Up)", "REACTION"],
+)
+def test_an_alternate_version_never_earns_canonical_evidence(title_suffix):
+    """Case 4. Identity validation rejects these before evidence matters."""
+    alternate = upload(
+        "Indie Film Collective",
+        9_000_000_000,
+        title=f"{ARTIST} - {TITLE} {title_suffix} (Official Music Video)",
+        video_id="alternate",
+    )
+
+    assert not score_candidate(alternate, TITLE, ARTIST, SONG_MS).accepted
+    assert choose(alternate, official_audio(1_000_000)).video.video_id == "audio"
+
+
+def test_a_topic_upload_still_wins_when_it_is_the_best_representation():
+    """Case 5. Nothing about this change penalises Topic channels."""
+    topic = upload(f"{ARTIST} - Topic", 40_000_000, video_id="topic")
+    weak_canonical = canonical_upload(5_000_000, video_id="canonical")
+
+    assert choose(topic, weak_canonical).video.video_id == "topic"
+
+
+def test_a_lone_topic_upload_is_unaffected():
+    chosen = choose(upload(f"{ARTIST} - Topic", 1_000, video_id="topic"))
+
+    assert chosen.video.video_id == "topic"
+
+
+def test_the_constrained_rule_is_order_independent():
+    """Case 6."""
+    audio = official_audio(166_000_000)
+    canonical = canonical_upload(1_209_000_000)
+    topic = upload(f"{ARTIST} - Topic", 1_400_000, video_id="topic")
+
+    orders = [
+        (audio, canonical, topic),
+        (topic, audio, canonical),
+        (canonical, topic, audio),
+        (topic, canonical, audio),
+    ]
+
+    assert {choose(*order).video.video_id for order in orders} == {"canonical"}

@@ -144,6 +144,9 @@ class VideoMatch:
     method: str
     score: int
     reason: str
+    # Individual signals the scoring found, as stable tokens. Downstream rules
+    # read these rather than parsing `reason`, which is prose for humans.
+    evidence: frozenset[str] = frozenset()
 
     @property
     def accepted(self) -> bool:
@@ -347,16 +350,20 @@ def score_candidate(
 
     score = 0
     reasons = []
+    evidence: set[str] = set()
 
     if official_channel:
         score += 50
         reasons.append("artist channel")
+        evidence.add("official_channel")
     if is_topic:
         score += 30
         reasons.append("topic channel")
+        evidence.add("topic_channel")
     if has_official_marker:
         score += 20
         reasons.append("official marker")
+        evidence.add("official_marker")
     if has_lyric_marker:
         # Legitimate but usually not the canonical upload, so it should lose to
         # the official video when both are present.
@@ -365,6 +372,7 @@ def score_candidate(
     if duration_close:
         score += 25
         reasons.append("duration matches")
+        evidence.add("duration_close")
     elif duration_known:
         # Known and wrong is evidence against, unlike simply unknown. But an
         # official music video legitimately runs longer than the recording,
@@ -381,6 +389,7 @@ def score_candidate(
     if artist_in_title:
         score += 10
         reasons.append("artist in title")
+        evidence.add("artist_in_title")
 
     # An official upload is acceptable when its length is either close to the
     # recording or plausibly longer, which is what a music video with an intro
@@ -401,13 +410,62 @@ def score_candidate(
         confidence = VideoMatchConfidence.UNRESOLVED
         method = "weak"
 
-    return VideoMatch(video, confidence, method, score, ", ".join(reasons) or "no signals")
+    if not song_versions and not video_versions:
+        # Neither side claims an alternate version, so this is the original
+        # studio recording rather than a demo, live take, or remix.
+        evidence.add("studio_original")
+
+    return VideoMatch(
+        video,
+        confidence,
+        method,
+        score,
+        ", ".join(reasons) or "no signals",
+        evidence=frozenset(evidence),
+    )
 
 
 # How much more watched a lower-authority upload must be before it is preferred
 # over a higher-authority one. An artist's own upload wins by default, but not
 # when an equally valid official upload has a thousand times the audience.
 VIEW_DOMINANCE_FACTOR = 20
+
+# The relaxed bar, available only to candidates carrying strong canonical
+# evidence. It exists because the full 20x bar is the wrong shape for a common
+# real case: an artist's own channel hosts an official *audio* upload while the
+# official *music video* lives on the channel that produced it. The video is the
+# canonical artifact and carries most of the audience, but the gap between them
+# is usually single digit multiples rather than an order of magnitude.
+CANONICAL_DOMINANCE_FACTOR = 5
+
+# What a candidate must show before the relaxed bar applies. Every one of these
+# is already required for acceptance except the official marker, so this is
+# really asking: does the upload explicitly present itself as the official
+# release of exactly this recording.
+CANONICAL_EVIDENCE = frozenset(
+    {"official_marker", "artist_in_title", "duration_close", "studio_original"}
+)
+
+
+def has_canonical_evidence(match: VideoMatch) -> bool:
+    """Whether a candidate is strong enough to use the relaxed dominance bar.
+
+    Deliberately not a channel allowlist. It asks for evidence in the metadata
+    we already have: the upload names the artist, states an official marker,
+    runs to within the tight duration tolerance of our recording, and claims no
+    alternate version on either side.
+
+    The honest limitation: a reupload that faithfully copies the official title
+    would satisfy this. Identity validation has already rejected wrong artists,
+    wrong lengths, and alternate versions, and the 5x audience bar still has to
+    be cleared, so the damage such a reupload could do is bounded. A stricter
+    rule would need a maintained list of label and production channels, which is
+    exactly the hardcoding this avoids.
+    """
+    return (
+        CANONICAL_EVIDENCE <= match.evidence
+        and CONFIDENCE_RANK[match.confidence] >= 1
+    )
 
 
 def authority_rank(match: VideoMatch) -> int:
@@ -479,7 +537,17 @@ def _best_popularity_representation(valid: list[VideoMatch]) -> VideoMatch:
     leader_views = leader.video.view_count or 0
     challenger_views = most_watched.video.view_count or 0
 
-    if challenger_views >= max(leader_views, 1) * VIEW_DOMINANCE_FACTOR:
+    # A candidate carrying strong canonical evidence needs a smaller audience
+    # advantage to overturn seniority, because the evidence itself is telling us
+    # it is the canonical artifact. An anonymous reupload gets no such discount
+    # and must clear the full bar.
+    factor = (
+        CANONICAL_DOMINANCE_FACTOR
+        if has_canonical_evidence(most_watched)
+        else VIEW_DOMINANCE_FACTOR
+    )
+
+    if challenger_views >= max(leader_views, 1) * factor:
         return most_watched
 
     return leader

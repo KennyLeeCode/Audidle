@@ -18,6 +18,7 @@ from app.catalog.youtube_matcher import (
     VEVO,
     VideoMatch,
     authority_rank,
+    has_canonical_evidence,
     pick_best_video,
     score_candidate,
 )
@@ -150,16 +151,21 @@ def build_match_report(
                 f"it is a more authoritative upload ({report.selected.kind}) than the "
                 f"best valid alternative ({top_rival.kind})"
             )
-        elif best_views > rival_views:
+        elif report.selected.authority < top_rival.authority:
+            # Won despite lower authority, which only happens on a dominant
+            # audience. Saying which bar it cleared is the useful part.
+            multiple = best_views / max(rival_views, 1)
+            bar = "the canonical" if has_canonical_evidence(best) else "the full"
             report.selection_reason = (
-                f"equally authoritative alternatives existed, and this upload has the "
-                f"largest audience ({best_views:,} against {rival_views:,})"
+                f"it is less authoritative ({report.selected.kind}) than the best "
+                f"alternative ({top_rival.kind}), but carries {multiple:.0f}x the "
+                f"audience ({best_views:,} against {rival_views:,}), clearing "
+                f"{bar} dominance bar"
             )
         else:
             report.selection_reason = (
-                f"a less authoritative alternative had a dramatically larger audience "
-                f"({rival_views:,} against {best_views:,}), so it was preferred as the "
-                f"better popularity measurement"
+                f"equally authoritative alternatives existed, and this upload has the "
+                f"largest audience ({best_views:,} against {rival_views:,})"
             )
 
     return report
