@@ -15,8 +15,15 @@ import random
 from app.core.errors import NoEligibleSongError, NoPlayableSongError
 from app.models.song import PlayableSource, Song, SongSelectionCriteria
 from app.providers.base import AudioProvider, PopularityProvider, SongCatalogProvider
+from app.services.search_dedup import dedupe_for_autocomplete
 
 logger = logging.getLogger(__name__)
+
+# How many extra results to request before collapsing duplicates and versions.
+# A search for a song with several releases can lose most of its rows, so asking
+# for exactly `limit` would return a short list. Providers clamp this to
+# whatever they actually support, so asking for more is safe.
+SEARCH_OVERFETCH = 3
 
 
 class SongService:
@@ -116,7 +123,18 @@ class SongService:
         return await self._catalog.resolve_external(provider, external_id)
 
     async def search(self, query: str, limit: int = 10) -> list[Song]:
-        return await self._catalog.search(query, limit=limit)
+        """Search the catalog for the guess autocomplete.
+
+        Provider results are collapsed to one suggestion per song before they
+        reach the player. A raw provider search returns the same recording under
+        several release ids and lists the acoustic and sped up cuts alongside
+        the original, none of which is what someone typing a guess means.
+
+        Over-fetched deliberately, because collapsing removes rows and a short
+        list would otherwise end up shorter than the caller asked for.
+        """
+        raw = await self._catalog.search(query, limit=limit * SEARCH_OVERFETCH)
+        return dedupe_for_autocomplete(raw)[:limit]
 
     async def _eligible_songs(self, criteria: SongSelectionCriteria) -> list[Song]:
         """Resolve criteria into concrete Song objects.

@@ -40,8 +40,12 @@ logger = logging.getLogger(__name__)
 
 # Spotify's batch track endpoint accepts at most 50 ids per call.
 MAX_BATCH_SIZE = 50
-# Spotify caps search paging at 50 results per request.
-MAX_SEARCH_LIMIT = 50
+# Measured against this app's credentials, not taken from the documentation.
+# The docs say 50, but anything above 10 returns HTTP 400 for an app created
+# after Spotify's November 2024 restrictions, even when the result set is
+# larger: a query reporting total=15 still refuses limit=11. Requests are
+# clamped here so callers can ask for more without triggering a 400.
+MAX_SEARCH_LIMIT = 10
 
 
 class SpotifySongProvider(SongCatalogProvider):

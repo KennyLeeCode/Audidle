@@ -16,7 +16,10 @@ import pytest
 from app.models.song import Song
 from app.providers.base import SongCatalogProvider
 from app.providers.caching import CachedSongCatalogProvider
-from app.providers.spotify.spotify_song_provider import SpotifySongProvider
+from app.providers.spotify.spotify_song_provider import (
+    MAX_SEARCH_LIMIT,
+    SpotifySongProvider,
+)
 
 # A real track object, trimmed. Note what is absent.
 TRACK = {
@@ -161,8 +164,11 @@ async def test_search_passes_market_and_caps_the_limit():
     assert path == "search"
     assert params["type"] == "track"
     assert params["market"] == "US"
-    # Spotify rejects anything above 50.
-    assert params["limit"] == 50
+    # Measured, not from the docs. The documented ceiling is 50, but an app
+    # created after Spotify's November 2024 restrictions gets HTTP 400 for
+    # anything above 10, even on queries whose result set is larger.
+    assert params["limit"] == MAX_SEARCH_LIMIT
+    assert MAX_SEARCH_LIMIT == 10
 
 
 @pytest.mark.anyio
