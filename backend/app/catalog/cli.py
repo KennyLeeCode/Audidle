@@ -13,6 +13,7 @@
     py -m app.catalog audit-youtube       re-score stored matches, no quota cost
     py -m app.catalog audit-youtube --force   also invalidate the ones that fail
     py -m app.catalog model-comparison    candidate scoring models, applied to nothing
+    py -m app.catalog popularity-audit    scores, confidence, and what needs review
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -396,6 +397,14 @@ async def _audit_youtube(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _popularity_audit(session, settings, force: bool = False) -> int:
+    """Score and confidence for every song. Read only, no network."""
+    from app.catalog.popularity_audit import render_popularity_audit, run_popularity_audit
+
+    logger.info(render_popularity_audit(await run_popularity_audit(session)))
+    return 0
+
+
 COMMANDS = {
     "migrate-curated": _migrate_curated,
     "enrich-musicbrainz": _enrich_musicbrainz,
@@ -409,6 +418,7 @@ COMMANDS = {
     "audit-youtube": _audit_youtube,
     "match-report": _match_report,
     "model-comparison": _model_comparison,
+    "popularity-audit": _popularity_audit,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,
