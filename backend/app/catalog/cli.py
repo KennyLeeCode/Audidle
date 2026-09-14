@@ -14,6 +14,7 @@
     py -m app.catalog audit-youtube --force   also invalidate the ones that fail
     py -m app.catalog model-comparison    candidate scoring models, applied to nothing
     py -m app.catalog popularity-audit    scores, confidence, and what needs review
+    py -m app.catalog expand --target 150 discover and import new songs
     py -m app.catalog stats             counts per tier and per data source
     py -m app.catalog validate          report what is missing and why
     py -m app.catalog unresolved        matches parked for review
@@ -405,6 +406,67 @@ async def _popularity_audit(session, settings, force: bool = False) -> int:
     return 0
 
 
+async def _expand(session, settings, force: bool = False, song: str | None = None,
+                  target: int = 150) -> int:
+    """Grow the catalog toward a target size. Adds identity only, no popularity."""
+    from sqlalchemy import func, select
+
+    from app.catalog.expand import import_candidates
+    from app.database.catalog_models import Artist, CatalogSong
+    from app.providers.listenbrainz.listenbrainz_provider import ListenBrainzProvider
+    from app.providers.seed.listenbrainz_seed import ListenBrainzArtistSeedProvider
+
+    current = (await session.execute(select(func.count(CatalogSong.id)))).scalar_one()
+    wanted = target - current
+    if wanted <= 0:
+        logger.info("catalog already holds %s songs, target is %s", current, target)
+        return 0
+
+    artists = [
+        (row.name, row.musicbrainz_artist_id)
+        for row in (
+            await session.execute(
+                select(Artist).where(Artist.musicbrainz_artist_id.is_not(None))
+            )
+        ).scalars()
+    ]
+
+    logger.info(
+        "catalog holds %s songs, target %s, looking for %s more across %s artists",
+        current, target, wanted, len(artists),
+    )
+
+    provider = ListenBrainzProvider()
+    seed = ListenBrainzArtistSeedProvider(provider, artists, per_artist=6)
+    try:
+        # Over-discover, because many candidates will already be in the catalog.
+        candidates = await seed.discover(limit=wanted * 3)
+    finally:
+        await provider.aclose()
+
+    logger.info("discovered %s candidates, importing", len(candidates))
+    report = await import_candidates(
+        session,
+        candidates,
+        max_new=wanted,
+        progress=lambda done, total: logger.info("  [%s/%s]", done, total),
+    )
+
+    total = (await session.execute(select(func.count(CatalogSong.id)))).scalar_one()
+
+    logger.info("CATALOG EXPANSION\n")
+    logger.info(f"  candidates considered   {report.considered:>6}")
+    logger.info(f"  songs created           {report.created:>6}")
+    logger.info(f"  duplicates skipped      {report.duplicates:>6}")
+    logger.info(f"    by provider id        {report.duplicate_provider_id:>6}")
+    logger.info(f"    by ISRC               {report.duplicate_isrc:>6}")
+    logger.info(f"    by MusicBrainz id     {report.duplicate_mbid:>6}")
+    logger.info(f"    by title and artist   {report.duplicate_metadata:>6}")
+    logger.info(f"  failed                  {report.failed:>6}")
+    logger.info(f"  catalog now             {total:>6}")
+    return 0
+
+
 COMMANDS = {
     "migrate-curated": _migrate_curated,
     "enrich-musicbrainz": _enrich_musicbrainz,
@@ -419,6 +481,7 @@ COMMANDS = {
     "match-report": _match_report,
     "model-comparison": _model_comparison,
     "popularity-audit": _popularity_audit,
+    "expand": _expand,
     "stats": _stats,
     "validate": _validate,
     "unresolved": _unresolved,
@@ -428,6 +491,12 @@ COMMANDS = {
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.catalog", description=__doc__)
     parser.add_argument("command", choices=sorted(COMMANDS))
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=150,
+        help="catalog size to grow toward (expand only)",
+    )
     parser.add_argument(
         "--song",
         default=None,
@@ -442,6 +511,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     handler = COMMANDS[args.command]
+    if handler is _expand:
+        return asyncio.run(_with_session(handler, args.force, args.song, args.target))
     if handler in (_enrich_youtube, _match_report):
         return asyncio.run(_with_session(handler, args.force, args.song))
     return asyncio.run(_with_session(handler, args.force))

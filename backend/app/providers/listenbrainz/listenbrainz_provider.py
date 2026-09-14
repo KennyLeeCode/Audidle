@@ -137,6 +137,53 @@ class ListenBrainzProvider:
 
         return results
 
+    async def get_top_recordings_for_artist(self, artist_mbid: str) -> list[dict]:
+        """Recordings by an artist, most listened first.
+
+        A discovery call, not a popularity one. It answers "what else did this
+        artist record", and the listen counts it returns are used to order the
+        results, never to set a difficulty.
+        """
+        for attempt in range(MAX_RETRIES):
+            self.request_count += 1
+            try:
+                response = await self._http.get(
+                    f"{API_BASE}/popularity/top-recordings-for-artist/{artist_mbid}"
+                )
+            except httpx.HTTPError as error:
+                if attempt == MAX_RETRIES - 1:
+                    raise CatalogUnavailableError("Could not reach ListenBrainz") from error
+                await _sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+
+            if response.status_code == 200:
+                body = response.json()
+                return body if isinstance(body, list) else []
+
+            # 401 and 429 both show up under load here and both pass.
+            if response.status_code in (401, 429) or response.status_code >= 500:
+                if attempt == MAX_RETRIES - 1:
+                    logger.warning(
+                        "ListenBrainz gave up on artist %s with %s",
+                        artist_mbid,
+                        response.status_code,
+                    )
+                    return []
+                await _sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+
+            if response.status_code == 404:
+                return []
+
+            logger.warning(
+                "unexpected ListenBrainz status %s for artist %s",
+                response.status_code,
+                artist_mbid,
+            )
+            return []
+
+        return []
+
     async def aclose(self) -> None:
         await self._http.aclose()
 
