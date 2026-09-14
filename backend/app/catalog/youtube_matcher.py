@@ -426,34 +426,59 @@ def authority_rank(match: VideoMatch) -> int:
     return 0
 
 
+CONFIDENCE_RANK = {
+    VideoMatchConfidence.VERIFIED_OFFICIAL: 2,
+    VideoMatchConfidence.MANUAL: 2,
+    VideoMatchConfidence.HIGH_CONFIDENCE: 1,
+    VideoMatchConfidence.UNRESOLVED: 0,
+}
+
+
+def _ranking_key(match: VideoMatch) -> tuple:
+    """Order validated candidates by how well they represent the song.
+
+    The video id is the final term so the order is total and does not depend on
+    which candidate the search happened to return first.
+    """
+    return (
+        authority_rank(match),
+        CONFIDENCE_RANK[match.confidence],
+        match.video.view_count or 0,
+        match.score,
+        match.video.video_id,
+    )
+
+
 def _best_popularity_representation(valid: list[VideoMatch]) -> VideoMatch:
     """Pick the best popularity measurement among validated candidates.
 
-    Identity is already settled by the time this runs. Every candidate here is
-    accepted as the right recording, so the only question left is which upload
-    best represents how widely the song has been heard.
+    Identity is already settled by the time this runs. Every candidate here has
+    passed the artist, title, duration, and version checks, so the only question
+    left is which upload best represents how widely the song has been heard.
 
-    Authority leads, because an artist's own upload is the canonical one. But
-    authority alone would pick a duplicate Topic upload with a rounding error of
-    the audience, so a dramatically more watched alternative wins instead. Both
-    are already known to be the same recording, so preferring the bigger one
-    cannot change *which song* was measured.
+    Authority and confidence lead, because an artist's own upload is usually the
+    canonical one. But neither may *exclude* a validated candidate from the
+    comparison, which is the mistake this function was written to fix: a
+    production company's upload of the official music video carried 843 times
+    the audience of the artist's Topic duplicate and never reached the ranking
+    at all, because it was merely high confidence rather than verified.
+
+    So a dramatically larger audience overrides seniority, across confidence
+    levels. Both candidates are already known to be the same recording, so
+    preferring the bigger one cannot change *which song* was measured, only
+    which measurement of it is used.
     """
-    ranked = sorted(
-        valid,
-        key=lambda match: (authority_rank(match), match.video.view_count or 0, match.score),
-        reverse=True,
-    )
-    leader = ranked[0]
+    leader = max(valid, key=_ranking_key)
 
-    most_watched = max(valid, key=lambda match: match.video.view_count or 0)
+    most_watched = max(
+        valid, key=lambda match: (match.video.view_count or 0, match.video.video_id)
+    )
     if most_watched is leader:
         return leader
 
     leader_views = leader.video.view_count or 0
     challenger_views = most_watched.video.view_count or 0
 
-    # A clearly bigger audience on an equally valid upload beats seniority.
     if challenger_views >= max(leader_views, 1) * VIEW_DOMINANCE_FACTOR:
         return most_watched
 
@@ -492,23 +517,38 @@ def pick_best_video(
     if not accepted:
         return None
 
-    verified = [
-        match
-        for match in accepted
-        if match.confidence is VideoMatchConfidence.VERIFIED_OFFICIAL
-    ]
-    if verified:
-        return _best_popularity_representation(verified)
-
-    accepted.sort(key=lambda match: -match.score)
-    best = accepted[0]
-
-    if len(accepted) > 1 and best.score - accepted[1].score < 10:
-        # A clear winner needs real separation. Ten points is roughly the gap
-        # between "official channel" and "some channel that named the artist".
+    # The ambiguity guard, and the only case that still refuses outright: no
+    # candidate is authoritative, none dominates on audience, and their scores
+    # are too close to separate. That is two anonymous reuploads of unknown
+    # provenance, and picking one would be a guess.
+    if _is_ambiguous(accepted):
         return None
 
-    return best
+    # Every remaining candidate has passed identity validation, so ranking runs
+    # across all of them. Confidence informs the order but never excludes.
+    return _best_popularity_representation(accepted)
+
+
+def _is_ambiguous(accepted: list[VideoMatch]) -> bool:
+    """Whether a validated set has no defensible winner."""
+    if len(accepted) < 2:
+        return False
+
+    if any(authority_rank(match) >= 1 for match in accepted):
+        # Something authoritative is present, so the ranking has a basis.
+        return False
+
+    by_views = sorted(accepted, key=lambda match: -(match.video.view_count or 0))
+    top_views = by_views[0].video.view_count or 0
+    runner_up_views = by_views[1].video.view_count or 0
+    if top_views >= max(runner_up_views, 1) * VIEW_DOMINANCE_FACTOR:
+        # One upload clearly carries the audience, which is a basis too.
+        return False
+
+    by_score = sorted(accepted, key=lambda match: -match.score)
+    # Ten points is roughly the gap between "official channel" and "some
+    # channel that named the artist".
+    return by_score[0].score - by_score[1].score < 10
 
 
 def best_rejection_reason(

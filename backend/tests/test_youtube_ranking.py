@@ -249,3 +249,178 @@ def test_identity_validation_runs_before_ranking():
     )
 
     assert not live.accepted
+
+
+# -- Confidence must rank, never exclude ------------------------------------
+#
+# Found on real data. A production company's upload of an official music video
+# carried 843 times the audience of the artist's own Topic duplicate, and was
+# never even compared against it: the ranking filtered to VERIFIED_OFFICIAL
+# first, and the production company's channel only earned HIGH_CONFIDENCE.
+#
+# Identity validation is the hard gate. Confidence and authority order what
+# survives it, and must not remove an otherwise valid candidate from the
+# comparison entirely.
+
+
+def production_upload(views, video_id="production", title=None):
+    """A canonical upload on a channel that is not the artist's own.
+
+    Scores as high confidence: the title carries an official marker and the
+    artist name, and the duration matches, but the channel is a third party.
+    """
+    return upload(
+        "Lyric Label Productions",
+        views,
+        title=title or f"{ARTIST} - {TITLE} (Official Music Video)",
+        duration_ms=231_000,
+        video_id=video_id,
+    )
+
+
+def test_a_dominant_high_confidence_upload_beats_a_verified_topic_upload():
+    """Case 1. The exact shape that was silently losing."""
+    topic = upload(f"{ARTIST} - Topic", 1_434_458, video_id="topic")
+    canonical = production_upload(1_209_915_124)
+
+    chosen = choose(topic, canonical)
+
+    assert chosen is not None
+    assert chosen.video.video_id == "production"
+    # And the Topic upload was never rejected, only out-ranked.
+    topic_match = score_candidate(topic, TITLE, ARTIST, SONG_MS)
+    assert topic_match.accepted
+    assert topic_match.confidence is VideoMatchConfidence.VERIFIED_OFFICIAL
+
+
+def test_a_slightly_more_watched_high_confidence_upload_does_not_win():
+    """Case 2. Dominance is for order-of-magnitude gaps, not narrow leads."""
+    topic = upload(f"{ARTIST} - Topic", 40_000_000, video_id="topic")
+    canonical = production_upload(55_000_000)
+
+    chosen = choose(topic, canonical)
+
+    assert chosen.video.video_id == "topic"
+
+
+def test_a_verified_upload_wins_when_audiences_are_equal():
+    topic = upload(f"{ARTIST} - Topic", 10_000_000, video_id="topic")
+    canonical = production_upload(10_000_000)
+
+    assert choose(topic, canonical).video.video_id == "topic"
+
+
+@pytest.mark.parametrize(
+    ("title", "label"),
+    [
+        (f"{ARTIST} - {TITLE} (Live at Wembley)", "live"),
+        (f"{ARTIST} - {TITLE} (Kygo Remix)", "remix"),
+        (f"{ARTIST} - {TITLE} (Acoustic)", "acoustic"),
+        (f"{ARTIST} - {TITLE} REACTION", "reaction"),
+    ],
+)
+def test_a_huge_invalid_candidate_never_reaches_the_ranking(title, label):
+    """Case 3. Identity validation still runs first and is not negotiable."""
+    invalid = production_upload(5_000_000_000, video_id="invalid", title=title)
+    topic = upload(f"{ARTIST} - Topic", 50_000, video_id="topic")
+
+    assert not score_candidate(invalid, TITLE, ARTIST, SONG_MS).accepted
+    assert choose(invalid, topic).video.video_id == "topic"
+
+
+def test_a_dominant_upload_by_the_wrong_artist_never_reaches_the_ranking():
+    wrong = upload(
+        "Some Other Act",
+        4_000_000_000,
+        title=f"Some Other Act - {TITLE}",
+        video_id="wrong",
+    )
+    topic = upload(f"{ARTIST} - Topic", 20_000, video_id="topic")
+
+    assert choose(wrong, topic).video.video_id == "topic"
+
+
+def test_selection_is_order_independent_across_confidence_levels():
+    """Case 4. Deterministic regardless of what the search returned first."""
+    topic = upload(f"{ARTIST} - Topic", 1_400_000, video_id="topic")
+    canonical = production_upload(1_200_000_000)
+    vevo = upload(
+        f"{ARTIST}VEVO",
+        30_000_000,
+        title=f"{ARTIST} - {TITLE} (Official Audio)",
+        video_id="vevo",
+    )
+
+    orders = [
+        (topic, canonical, vevo),
+        (canonical, vevo, topic),
+        (vevo, topic, canonical),
+        (canonical, topic, vevo),
+    ]
+    picked = {choose(*order).video.video_id for order in orders}
+
+    assert picked == {"production"}
+
+
+def test_an_exact_view_tie_resolves_the_same_way_in_either_order():
+    """Determinism is the property, whatever the outcome happens to be.
+
+    Two anonymous uploads with identical audiences and identical scores are
+    genuinely ambiguous, so both orderings refuse. What matters is that they
+    refuse *consistently* rather than depending on search result order.
+    """
+    left = upload(
+        "Music Archive A",
+        5_000_000,
+        title=f"{ARTIST} - {TITLE} (Official Video)",
+        video_id="aaa",
+    )
+    right = upload(
+        "Music Archive B",
+        5_000_000,
+        title=f"{ARTIST} - {TITLE} (Official Video)",
+        video_id="zzz",
+    )
+
+    assert choose(left, right) == choose(right, left)
+
+
+def test_an_authoritative_tie_resolves_deterministically():
+    """When a winner does exist, ties break on a stable key, not arrival order."""
+    topic = upload(f"{ARTIST} - Topic", 5_000_000, video_id="aaa")
+    canonical = production_upload(5_000_000, video_id="zzz")
+
+    assert (
+        choose(topic, canonical).video.video_id
+        == choose(canonical, topic).video.video_id
+    )
+
+
+def test_two_anonymous_reuploads_are_still_refused():
+    """The ambiguity guard survives the change.
+
+    Nothing authoritative, nothing dominant, scores too close to separate.
+    """
+    left = upload(
+        "Music Archive", 5_000_000, title=f"{ARTIST} - {TITLE} (Official Video)", video_id="a"
+    )
+    right = upload(
+        "Best Hits", 6_000_000, title=f"{ARTIST} - {TITLE} (Official Video)", video_id="b"
+    )
+
+    assert choose(left, right) is None
+
+
+def test_one_dominant_anonymous_upload_is_not_ambiguous():
+    """A clear audience leader is a basis for choosing, even without authority."""
+    small = upload(
+        "Music Archive", 100_000, title=f"{ARTIST} - {TITLE} (Official Video)", video_id="small"
+    )
+    large = upload(
+        "Big Archive", 900_000_000, title=f"{ARTIST} - {TITLE} (Official Video)", video_id="large"
+    )
+
+    chosen = choose(small, large)
+
+    assert chosen is not None
+    assert chosen.video.video_id == "large"

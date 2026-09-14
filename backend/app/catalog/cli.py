@@ -328,8 +328,12 @@ async def _match_report(session, settings, force: bool = False, song: str | None
         fetch_candidates,
         render_match_report,
     )
+    from app.core.errors import AudidleError
     from app.database.catalog_models import CatalogSong
-    from app.providers.youtube.youtube_provider import YouTubePopularityProvider
+    from app.providers.youtube.youtube_provider import (
+        QuotaExhaustedError,
+        YouTubePopularityProvider,
+    )
 
     if not song:
         logger.error('match-report needs --song "Song Title"')
@@ -358,6 +362,15 @@ async def _match_report(session, settings, force: bool = False, song: str | None
     )
     try:
         candidates = await fetch_candidates(provider, target.title, target.artist_credit)
+    except QuotaExhaustedError as error:
+        # A spent quota is a normal state for this command, not a crash.
+        logger.error("  %s", error)
+        logger.error("  Nothing was changed. Try again after the quota resets.")
+        return 1
+    except AudidleError as error:
+        logger.error("  YouTube request failed: %s", error)
+        logger.error("  Nothing was changed.")
+        return 1
     finally:
         await provider.aclose()
 
